@@ -15,6 +15,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <tuple>
 
 #if defined(__unix__)
 #include <algorithm>
@@ -29,6 +30,10 @@ bool RawVertex::operator==(const RawVertex& other) const {
       (uv1 == other.uv1) && (jointIndices == other.jointIndices) &&
       (jointWeights == other.jointWeights) && (polarityUv0 == other.polarityUv0) &&
       (blendSurfaceIx == other.blendSurfaceIx) && (blends == other.blends);
+}
+
+bool RawVertex::operator<(const RawVertex &other) const {
+    return std::make_tuple(position.x, position.y, position.z) < std::make_tuple(other.position.x, other.position.y, other.position.z);
 }
 
 size_t RawVertex::Difference(const RawVertex& other) const {
@@ -71,11 +76,11 @@ void RawModel::AddVertexAttribute(const RawVertexAttribute attrib) {
 }
 
 int RawModel::AddVertex(const RawVertex& vertex) {
-  auto it = vertexHash.find(vertex);
-  if (it != vertexHash.end()) {
+  auto it = vertexMap.find(vertex);
+  if (it != vertexMap.end()) {
     return it->second;
   }
-  vertexHash.emplace(vertex, (int)vertices.size());
+  vertexMap.emplace(vertex, (int)vertices.size());
   vertices.push_back(vertex);
   return (int)vertices.size() - 1;
 }
@@ -388,7 +393,7 @@ void RawModel::Condense() {
   {
     std::vector<RawVertex> oldVertices = vertices;
 
-    vertexHash.clear();
+    vertexMap.clear();
     vertices.clear();
 
     for (auto& triangle : triangles) {

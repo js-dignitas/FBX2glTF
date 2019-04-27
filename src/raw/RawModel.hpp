@@ -12,6 +12,7 @@
 #include <functional>
 #include <set>
 #include <unordered_map>
+#include <map>
 
 #include "FBX2glTF.h"
 
@@ -66,19 +67,8 @@ struct RawVertex {
   bool pad3;
 
   bool operator==(const RawVertex& other) const;
+  bool operator<(const RawVertex& other) const;
   size_t Difference(const RawVertex& other) const;
-};
-
-class VertexHasher {
- public:
-  size_t operator()(const RawVertex& v) const {
-    size_t seed = 5381;
-    const auto hasher = std::hash<float>{};
-    seed ^= hasher(v.position[0]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    seed ^= hasher(v.position[1]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    seed ^= hasher(v.position[2]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    return seed;
-  }
 };
 
 struct RawTriangle {
@@ -530,7 +520,7 @@ class RawModel {
 
   long rootNodeId;
   int vertexAttributes;
-  std::unordered_map<RawVertex, int, VertexHasher> vertexHash;
+  std::map<RawVertex, int> vertexMap;
   std::vector<RawVertex> vertices;
   std::vector<RawTriangle> triangles;
   std::vector<RawTexture> textures;
