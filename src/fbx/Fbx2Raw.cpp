@@ -44,6 +44,7 @@ static bool TriangleTexturePolarity(const Vec2f& uv0, const Vec2f& uv1, const Ve
 
 static RawMaterialType GetMaterialType(
     const RawModel& raw,
+    const RawMatProps& props,
     const int textures[RAW_TEXTURE_USAGE_MAX],
     const bool vertexTransparency,
     const bool skinned) {
@@ -60,8 +61,8 @@ static RawMaterialType GetMaterialType(
         : (skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT);
   }
 
-  // else if there is any vertex transparency, treat whole mesh as transparent
-  if (vertexTransparency) {
+  // else if there is any vertex transparency or base prop transparency, treat whole mesh as transparent
+  if (vertexTransparency || props.hasTransparency()) {
     return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
   }
 
@@ -438,7 +439,7 @@ static void ReadMesh(
     }
 
     const RawMaterialType materialType =
-        GetMaterialType(raw, textures, vertexTransparency, skinning.IsSkinned());
+        GetMaterialType(raw, *rawMatProps, textures, vertexTransparency, skinning.IsSkinned());
     const int rawMaterialIndex = raw.AddMaterial(
         materialId, materialName, materialType, textures, rawMatProps, userProperties);
 
@@ -781,6 +782,8 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
       bool hasRotation = false;
       bool hasScale = false;
       bool hasMorphs = false;
+
+      fmt::printf("baseScaling: %f, %f, %f\n", baseScaling[0], baseScaling[1], baseScaling[2]);
 
       RawChannel channel;
       channel.nodeIndex = raw.GetNodeById(pNode->GetUniqueID());

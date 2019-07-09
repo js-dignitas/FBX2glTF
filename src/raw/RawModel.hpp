@@ -183,6 +183,8 @@ struct RawMatProps {
   virtual bool operator==(const RawMatProps& other) const {
     return shadingModel == other.shadingModel;
   };
+
+  virtual bool hasTransparency() const = 0;
 };
 
 struct RawTraditionalMatProps : RawMatProps {
@@ -214,6 +216,10 @@ struct RawTraditionalMatProps : RawMatProps {
           shininess == typed.shininess;
     }
     return false;
+  }
+
+  bool hasTransparency() const override {
+    return diffuseFactor.w < 0.999999f;
   }
 };
 
@@ -248,6 +254,10 @@ struct RawMetRoughMatProps : RawMatProps {
           roughness == typed.roughness;
     }
     return false;
+  }
+
+  bool hasTransparency() const override {
+    return diffuseFactor.w < 0.999999f;
   }
 };
 
