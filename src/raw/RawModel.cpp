@@ -32,8 +32,34 @@ bool RawVertex::operator==(const RawVertex& other) const {
       (blendSurfaceIx == other.blendSurfaceIx) && (blends == other.blends);
 }
 
+
+
 bool RawVertex::operator<(const RawVertex &other) const {
-    return std::make_tuple(position.x, position.y, position.z) < std::make_tuple(other.position.x, other.position.y, other.position.z);
+    return std::make_tuple(
+      position.x, position.y, position.z,
+      normal.x, normal.y, normal.z,
+      binormal.x, binormal.y, binormal.z,
+      uv0.x, uv0.y,
+      uv1.x, uv1.y,
+      color.x, color.y, color.z,
+      jointIndices.x, jointIndices.y, jointIndices.z, jointIndices.w,
+      jointWeights.x, jointWeights.y, jointWeights.z, jointWeights.w,
+      blendSurfaceIx,
+      polarityUv0
+      ) 
+      < 
+      std::make_tuple(
+        other.position.x, other.position.y, other.position.z,
+        other.normal.x, other.normal.y, other.normal.z,
+        other.binormal.x, other.binormal.y, other.binormal.z,
+        other.uv0.x, other.uv0.y,
+        other.uv1.x, other.uv1.y,
+        other.color.x, other.color.y, other.color.z,
+        other.jointIndices.x, other.jointIndices.y, other.jointIndices.z, other.jointIndices.w,
+        other.jointWeights.x, other.jointWeights.y, other.jointWeights.z, other.jointWeights.w,
+        other.blendSurfaceIx,
+        other.polarityUv0
+        );
 }
 
 size_t RawVertex::Difference(const RawVertex& other) const {
