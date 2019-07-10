@@ -22,20 +22,25 @@
 
 namespace ImageUtils {
 
-static bool imageHasTransparentPixels(FILE* f) {
+static ImageOcclusion imageOcclusion(FILE* f) {
   int width, height, channels;
   // RGBA: we have to load the pixels to figure out if the image is fully opaque
   uint8_t* pixels = stbi_load_from_file(f, &width, &height, &channels, 0);
+  bool hasMaskTransparency = false;
   if (pixels != nullptr) {
     int pixelCount = width * height;
     for (int ix = 0; ix < pixelCount; ix++) {
-      // test fourth byte (alpha); 255 is 1.0
-      if (pixels[4 * ix + 3] != 255) {
-        return true;
+      uint8_t alpha = pixels[4 * ix + 3];
+      if (alpha < 255 && alpha > 0) {
+        return IMAGE_TRANSPARENT;
+      }
+
+      if (alpha == 0) {
+        hasMaskTransparency = true;
       }
     }
   }
-  return false;
+  return hasMaskTransparency ? IMAGE_TRANSPARENT_MASK : IMAGE_OPAQUE;
 }
 
 ImageProperties GetImageProperties(char const* filePath) {
@@ -53,8 +58,8 @@ ImageProperties GetImageProperties(char const* filePath) {
   int channels;
   int success = stbi_info_from_file(f, &result.width, &result.height, &channels);
 
-  if (success && channels == 4 && imageHasTransparentPixels(f)) {
-    result.occlusion = IMAGE_TRANSPARENT;
+  if (success && channels == 4) {
+    result.occlusion = imageOcclusion(f);
   }
   return result;
 }

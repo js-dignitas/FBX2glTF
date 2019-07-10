@@ -56,9 +56,14 @@ static RawMaterialType GetMaterialType(
   }
   // determine material type based on texture occlusion.
   if (diffuseTexture >= 0) {
-    return (raw.GetTexture(diffuseTexture).occlusion == RAW_TEXTURE_OCCLUSION_OPAQUE)
-        ? (skinned ? RAW_MATERIAL_TYPE_SKINNED_OPAQUE : RAW_MATERIAL_TYPE_OPAQUE)
-        : (skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT);
+    switch (raw.GetTexture(diffuseTexture).occlusion) {
+    case RAW_TEXTURE_OCCLUSION_OPAQUE:
+      return skinned ? RAW_MATERIAL_TYPE_SKINNED_OPAQUE : RAW_MATERIAL_TYPE_OPAQUE;
+    case RAW_TEXTURE_OCCLUSION_TRANSPARENT:
+      return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
+    case RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK:
+      return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK : RAW_MATERIAL_TYPE_TRANSPARENT_MASK; 
+    }
   }
 
   // else if there is any vertex transparency or base prop transparency, treat whole mesh as transparent

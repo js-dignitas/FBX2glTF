@@ -149,9 +149,17 @@ int RawModel::AddTexture(
   texture.mipLevels =
       (int)ceilf(log2f(std::max((float)properties.width, (float)properties.height)));
   texture.usage = usage;
-  texture.occlusion = (properties.occlusion == ImageUtils::IMAGE_TRANSPARENT)
-      ? RAW_TEXTURE_OCCLUSION_TRANSPARENT
-      : RAW_TEXTURE_OCCLUSION_OPAQUE;
+  switch (properties.occlusion) {
+  case ImageUtils::IMAGE_OPAQUE:
+    texture.occlusion = RAW_TEXTURE_OCCLUSION_OPAQUE;
+    break;
+  case ImageUtils::IMAGE_TRANSPARENT:
+    texture.occlusion = RAW_TEXTURE_OCCLUSION_TRANSPARENT;
+    break;
+  case ImageUtils::IMAGE_TRANSPARENT_MASK:
+    texture.occlusion = RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK;
+    break;
+  }
   texture.fileName = fileName;
   texture.fileLocation = fileLocation;
   textures.emplace_back(texture);

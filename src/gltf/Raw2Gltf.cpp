@@ -400,7 +400,7 @@ ModelData* Raw2Gltf(
 
       std::shared_ptr<MaterialData> mData = gltf->materials.hold(new MaterialData(
           material.name,
-          isTransparent,
+          material.type,
           material.info->shadingModel,
           normalTexture,
           occlusionTexture,

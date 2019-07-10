@@ -153,7 +153,11 @@ inline std::string Describe(RawTextureUsage usage) {
   }
 };
 
-enum RawTextureOcclusion { RAW_TEXTURE_OCCLUSION_OPAQUE, RAW_TEXTURE_OCCLUSION_TRANSPARENT };
+enum RawTextureOcclusion { 
+  RAW_TEXTURE_OCCLUSION_OPAQUE, 
+  RAW_TEXTURE_OCCLUSION_TRANSPARENT,
+  RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK,
+};
 
 struct RawTexture {
   std::string name; // logical name in FBX file
@@ -169,8 +173,10 @@ struct RawTexture {
 enum RawMaterialType {
   RAW_MATERIAL_TYPE_OPAQUE,
   RAW_MATERIAL_TYPE_TRANSPARENT,
+  RAW_MATERIAL_TYPE_TRANSPARENT_MASK,
   RAW_MATERIAL_TYPE_SKINNED_OPAQUE,
   RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT,
+  RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK,
 };
 
 struct RawMatProps {

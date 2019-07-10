@@ -43,7 +43,7 @@ struct PBRMetallicRoughness {
 struct MaterialData : Holdable {
   MaterialData(
       std::string name,
-      bool isTransparent,
+      RawMaterialType materialType,
       RawShadingModel shadingModel,
       const TextureData* normalTexture,
       const TextureData* occlusionTexture,
@@ -56,7 +56,7 @@ struct MaterialData : Holdable {
 
   const std::string name;
   const RawShadingModel shadingModel;
-  const bool isTransparent;
+  const RawMaterialType materialType;
   const std::unique_ptr<const Tex> normalTexture;
   const std::unique_ptr<const Tex> occlusionTexture;
   const std::unique_ptr<const Tex> emissiveTexture;

@@ -71,7 +71,7 @@ void to_json(json& j, const PBRMetallicRoughness& d) {
 
 MaterialData::MaterialData(
     std::string name,
-    bool isTransparent,
+    RawMaterialType materialType,
     const RawShadingModel shadingModel,
     const TextureData* normalTexture,
     const TextureData* occlusionTexture,
@@ -82,7 +82,7 @@ MaterialData::MaterialData(
     : Holdable(),
       name(std::move(name)),
       shadingModel(shadingModel),
-      isTransparent(isTransparent),
+      materialType(materialType),
       normalTexture(Tex::ref(normalTexture)),
       occlusionTexture(Tex::ref(occlusionTexture)),
       emissiveTexture(Tex::ref(emissiveTexture)),
@@ -92,11 +92,26 @@ MaterialData::MaterialData(
 
 json MaterialData::serialize() const {
   json result = {{"name", name},
-                 {"alphaMode", isTransparent ? "BLEND" : "OPAQUE"},
                  {"extras",
                   {{"fromFBX",
                     {{"shadingModel", Describe(shadingModel)},
                      {"isTruePBR", shadingModel == RAW_SHADING_MODEL_PBR_MET_ROUGH}}}}}};
+
+  switch (materialType) {
+  case RAW_MATERIAL_TYPE_OPAQUE: // fallthrough
+  case RAW_MATERIAL_TYPE_SKINNED_OPAQUE:
+    result["alphaMode"] = "OPAQUE";
+    break;
+  case RAW_MATERIAL_TYPE_TRANSPARENT: // fallthrough
+  case RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT:
+    result["alphaMode"] = "BLEND";
+    break;
+  
+  case RAW_MATERIAL_TYPE_TRANSPARENT_MASK: // fallthrough
+  case RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK:
+    result["alphaMode"] = "MASK";
+    break;
+  }
 
   if (normalTexture != nullptr) {
     result["normalTexture"] = *normalTexture;
