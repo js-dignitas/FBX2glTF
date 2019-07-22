@@ -220,13 +220,15 @@ static void ReadMesh(
     if (fbxMaterial == nullptr) {
       materialName = "DefaultMaterial";
       materialId = -1;
-      rawMatProps.reset(new RawTraditionalMatProps(
-          RAW_SHADING_MODEL_LAMBERT,
+      // Default to defaults from https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#reference-material
+      rawMatProps.reset(new RawMetRoughMatProps(
+          RAW_SHADING_MODEL_PBR_MET_ROUGH,
+          Vec4f(1, 1, 1, 1),
           Vec3f(0, 0, 0),
-          Vec4f(.5, .5, .5, 1),
-          Vec3f(0, 0, 0),
-          Vec3f(0, 0, 0),
-          0.5));
+          0.0f,
+          1.0f,
+          1.0f,
+          false));
 
     } else {
       materialName = fbxMaterial->name;
@@ -610,10 +612,12 @@ static void ReadNodeAttributes(
         ReadMesh(raw, pScene, pNode, textureLocations);
         break;
       }
+      /*
       case FbxNodeAttribute::eCamera: {
         ReadCamera(raw, pScene, pNode);
         break;
       }
+      */
       case FbxNodeAttribute::eLight:
         ReadLight(raw, pScene, pNode);
         break;
@@ -631,6 +635,7 @@ static void ReadNodeAttributes(
       case FbxNodeAttribute::eLODGroup:
       case FbxNodeAttribute::eSubDiv:
       case FbxNodeAttribute::eCachedEffect:
+      case FbxNodeAttribute::eCamera:
       case FbxNodeAttribute::eLine: {
         break;
       }
