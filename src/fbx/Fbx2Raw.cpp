@@ -732,6 +732,36 @@ static void ReadNodeHierarchy(
   }
 }
 
+// This anim evaluator caches results, speeding up animation conversion enormously in cases where there's a large
+// hierarchy in the FBX scene. Without this, EvaluateLocalTransform() ends up recalculating every node up the hierarchy
+// on every call, even if we've previously calculated that transform. Trades memory for speed, but can literally take
+// a conversion that takes 35 minutes and make it take 8.
+class CachingAnimEvaluator : public FbxAnimEvalClassic {
+  FBXSDK_OBJECT_DECLARE(CachingAnimEvaluator, FbxAnimEvalClassic);
+
+  typedef std::tuple<FbxNode*, FbxTime, FbxNode::EPivotSet, bool> KeyType;
+
+protected:
+  void EvaluateNodeTransform(FbxNodeEvalState* pResult, FbxNode* pNode, const FbxTime& pTime, FbxNode::EPivotSet pPivotSet, bool pApplyTarget) override {
+    auto cacheKey = std::make_tuple(pNode, pTime, pPivotSet, pApplyTarget);
+    auto it = cache_.find(cacheKey);
+    if (it != cache_.end()) {
+      *pResult = *it->second;
+      return;
+    }
+
+    FbxAnimEvalClassic::EvaluateNodeTransform(pResult, pNode, pTime, pPivotSet, pApplyTarget);
+    FbxNodeEvalState* cacheState = new FbxNodeEvalState(pNode);
+    *cacheState = *pResult;
+    cache_[cacheKey] = cacheState;
+  }
+
+private:
+  std::map<KeyType, FbxNodeEvalState*> cache_;
+};
+
+FBXSDK_OBJECT_IMPLEMENT(CachingAnimEvaluator);
+
 static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& options) {
   FbxTime::EMode eMode = FbxTime::eFrames24;
   switch (options.animationFramerate) {
@@ -753,6 +783,9 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
     FbxString animStackName = pAnimStack->GetName();
 
     pScene->SetCurrentAnimationStack(pAnimStack);
+
+    CachingAnimEvaluator* evaluator = CachingAnimEvaluator::Create(pScene, "CachingAnimEvaluator");
+    pScene->SetAnimationEvaluator(evaluator);
 
     FbxTakeInfo* takeInfo = pScene->GetTakeInfo(animStackName);
     if (takeInfo == nullptr) {
@@ -927,6 +960,8 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
       }
     }
 
+    evaluator->Destroy();
+
     raw.AddAnimation(animation);
 
     if (verboseOutput) {
@@ -1028,6 +1063,7 @@ bool LoadFBXFile(
   FbxManager* pManager = FbxManager::Create();
   FbxIOSettings* pIoSettings = FbxIOSettings::Create(pManager, IOSROOT);
   pManager->SetIOSettings(pIoSettings);
+  pManager->RegisterFbxClass("CachingAnimEvaluator", FBX_TYPE(CachingAnimEvaluator), FBX_TYPE(FbxAnimEvalClassic));
 
   FbxImporter* pImporter = FbxImporter::Create(pManager, "");
 
