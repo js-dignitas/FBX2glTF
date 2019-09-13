@@ -24,6 +24,15 @@
 #include "utils/Image_Utils.hpp"
 #include "utils/String_Utils.hpp"
 
+size_t VertexHasher::operator()(const RawVertex& v) const {
+  size_t seed = 5381;
+  const auto hasher = std::hash<float>{};
+  seed ^= hasher(v.position[0]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  seed ^= hasher(v.position[1]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  seed ^= hasher(v.position[2]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  return seed;
+}
+
 bool RawVertex::operator==(const RawVertex& other) const {
   return (position == other.position) && (normal == other.normal) && (tangent == other.tangent) &&
       (binormal == other.binormal) && (color == other.color) && (uv0 == other.uv0) &&
@@ -102,11 +111,14 @@ void RawModel::AddVertexAttribute(const RawVertexAttribute attrib) {
 }
 
 int RawModel::AddVertex(const RawVertex& vertex) {
-  auto it = vertexMap.find(vertex);
-  if (it != vertexMap.end()) {
+  /*auto it = std::find_if(vertexHash.begin(), vertexHash.end(), [&](const std::pair<RawVertex, int>& v2) -> bool {
+    return vertex == v2.first;
+  });*/
+  auto it = vertexHash.find(vertex);
+  if (it != vertexHash.end()) {
     return it->second;
   }
-  vertexMap.emplace(vertex, (int)vertices.size());
+  vertexHash.emplace(vertex, (int)vertices.size());
   vertices.push_back(vertex);
   return (int)vertices.size() - 1;
 }
@@ -183,6 +195,12 @@ int RawModel::AddMaterial(
     const int textures[RAW_TEXTURE_USAGE_MAX],
     std::shared_ptr<RawMatProps> materialInfo,
     const std::vector<std::string>& userProperties) {
+      auto it = materialIdToIndex.find(id);
+      if (it != materialIdToIndex.end()) {
+        return it->second;
+      }
+
+  //fmt::printf("Material count %d, id %d\n", materials.size(), id);
   for (size_t i = 0; i < materials.size(); i++) {
     if (materials[i].name != name) {
       continue;
@@ -205,6 +223,7 @@ int RawModel::AddMaterial(
       }
     }
     if (match) {
+      materialIdToIndex[id] = i;
       return (int)i;
     }
   }
@@ -215,6 +234,7 @@ int RawModel::AddMaterial(
   material.type = materialType;
   material.info = materialInfo;
   material.userProperties = userProperties;
+  material.index = (int)materials.size();
 
   for (int i = 0; i < RAW_TEXTURE_USAGE_MAX; i++) {
     material.textures[i] = textures[i];
@@ -222,7 +242,8 @@ int RawModel::AddMaterial(
 
   materials.emplace_back(material);
 
-  return (int)materials.size() - 1;
+  materialIdToIndex[id] = material.index;
+  return material.index;
 }
 
 int RawModel::AddLight(
@@ -260,16 +281,25 @@ int RawModel::AddLight(
 int RawModel::AddSurface(const RawSurface& surface) {
   for (size_t i = 0; i < surfaces.size(); i++) {
     if (StringUtils::CompareNoCase(surfaces[i].name, surface.name) == 0) {
+      surfaceIdToIndex[surface.id] = i;
       return (int)i;
     }
   }
 
-  surfaces.emplace_back(surface);
-  return (int)(surfaces.size() - 1);
+  RawSurface copy = surface;
+  copy.index = (int)surfaces.size();
+  surfaces.emplace_back(copy);
+  surfaceIdToIndex[surface.id] = copy.index;
+  return copy.index;
 }
 
 int RawModel::AddSurface(const char* name, const long surfaceId) {
   assert(name[0] != '\0');
+
+  auto it = surfaceIdToIndex.find(surfaceId);
+  if (it != surfaceIdToIndex.end()) {
+    return (int)it->second;
+  }
 
   for (size_t i = 0; i < surfaces.size(); i++) {
     if (surfaces[i].id == surfaceId) {
@@ -281,9 +311,11 @@ int RawModel::AddSurface(const char* name, const long surfaceId) {
   surface.name = name;
   surface.bounds.Clear();
   surface.discrete = false;
+  surface.index = (int)surfaces.size();
 
   surfaces.emplace_back(surface);
-  return (int)(surfaces.size() - 1);
+  surfaceIdToIndex[surfaceId] = surface.index;
+  return surface.index;
 }
 
 int RawModel::AddAnimation(const RawAnimation& animation) {
@@ -372,6 +404,7 @@ void RawModel::Condense() {
     std::vector<RawSurface> oldSurfaces = surfaces;
 
     surfaces.clear();
+    surfaceIdToIndex.clear();
 
     std::set<int> survivingSurfaceIds;
     for (auto& triangle : triangles) {
@@ -395,6 +428,7 @@ void RawModel::Condense() {
     std::vector<RawMaterial> oldMaterials = materials;
 
     materials.clear();
+    materialIdToIndex.clear();
 
     for (auto& triangle : triangles) {
       const RawMaterial& material = oldMaterials[triangle.materialIndex];
@@ -427,7 +461,7 @@ void RawModel::Condense() {
   {
     std::vector<RawVertex> oldVertices = vertices;
 
-    vertexMap.clear();
+    vertexHash.clear();
     vertices.clear();
 
     for (auto& triangle : triangles) {

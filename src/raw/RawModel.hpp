@@ -31,9 +31,9 @@ enum RawVertexAttribute {
 };
 
 struct RawBlendVertex {
-  Vec3f position{};
-  Vec3f normal{};
-  Vec4f tangent{};
+  Vec3f position{0.0f};
+  Vec3f normal{0.0f};
+  Vec4f tangent{0.0f};
 
   bool operator==(const RawBlendVertex& other) const {
     return position == other.position && normal == other.normal && tangent == other.tangent;
@@ -69,6 +69,11 @@ struct RawVertex {
   bool operator==(const RawVertex& other) const;
   bool operator<(const RawVertex& other) const;
   size_t Difference(const RawVertex& other) const;
+};
+
+class VertexHasher {
+ public:
+  size_t operator()(const RawVertex& v) const;
 };
 
 struct RawTriangle {
@@ -274,6 +279,7 @@ struct RawMaterial {
   std::shared_ptr<RawMatProps> info;
   int textures[RAW_TEXTURE_USAGE_MAX];
   std::vector<std::string> userProperties;
+  int index = -1;
 };
 
 enum RawLightType {
@@ -309,6 +315,7 @@ struct RawSurface {
   std::vector<Mat4f> inverseBindMatrices;
   std::vector<RawBlendChannel> blendChannels;
   bool discrete;
+  int index = -1;
 };
 
 struct RawChannel {
@@ -536,7 +543,9 @@ class RawModel {
 
   long rootNodeId;
   int vertexAttributes;
-  std::map<RawVertex, int> vertexMap;
+  std::unordered_map<RawVertex, int, VertexHasher> vertexHash;
+  std::unordered_map<long, size_t> materialIdToIndex;
+  std::unordered_map<long, size_t> surfaceIdToIndex;
   std::vector<RawVertex> vertices;
   std::vector<RawTriangle> triangles;
   std::vector<RawTexture> textures;
