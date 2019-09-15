@@ -19,6 +19,8 @@ class FbxMaterialInfo {
   FbxMaterialInfo(const FbxUInt64 id, const FbxString& name, const FbxString& shadingModel)
       : id(id), name(name), shadingModel(shadingModel) {}
 
+  virtual ~FbxMaterialInfo() {}
+
   const FbxUInt64 id;
   const FbxString name;
   const FbxString shadingModel;
