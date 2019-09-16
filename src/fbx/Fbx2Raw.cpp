@@ -751,13 +751,13 @@ protected:
     }
 
     FbxAnimEvalClassic::EvaluateNodeTransform(pResult, pNode, pTime, pPivotSet, pApplyTarget);
-    FbxNodeEvalState* cacheState = new FbxNodeEvalState(pNode);
+    std::unique_ptr<FbxNodeEvalState> cacheState(new FbxNodeEvalState(pNode));
     *cacheState = *pResult;
-    cache_[cacheKey] = cacheState;
+    cache_[cacheKey] = std::move(cacheState);
   }
 
 private:
-  std::map<KeyType, FbxNodeEvalState*> cache_;
+  std::map<KeyType, std::unique_ptr<FbxNodeEvalState>> cache_;
 };
 
 FBXSDK_OBJECT_IMPLEMENT(CachingAnimEvaluator);

@@ -23,11 +23,17 @@
 struct TexInfo {
   explicit TexInfo(int rawTexIx) : rawTexIx(rawTexIx) {}
 
+  ~TexInfo() {
+    if (pixels) {
+      stbi_image_free(pixels);
+    }
+  }
+
   const int rawTexIx;
   int width{};
   int height{};
   int channels{};
-  uint8_t* pixels{};
+  uint8_t* pixels = nullptr;
 };
 
 std::shared_ptr<TextureData> TextureBuilder::combine(

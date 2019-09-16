@@ -32,6 +32,7 @@ static ImageOcclusion imageOcclusion(FILE* f) {
     for (int ix = 0; ix < pixelCount; ix++) {
       uint8_t alpha = pixels[4 * ix + 3];
       if (alpha < 255 && alpha > 0) {
+        stbi_image_free(pixels);
         return IMAGE_TRANSPARENT;
       }
 
@@ -40,6 +41,8 @@ static ImageOcclusion imageOcclusion(FILE* f) {
       }
     }
   }
+
+  stbi_image_free(pixels);
   return hasMaskTransparency ? IMAGE_TRANSPARENT_MASK : IMAGE_OPAQUE;
 }
 
