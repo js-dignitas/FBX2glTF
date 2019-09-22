@@ -653,6 +653,9 @@ static void ReadNodeAttributes(
  */
 static FbxVector4 computeLocalScale(FbxNode* pNode, FbxTime pTime = FBXSDK_TIME_INFINITE) {
   const FbxVector4 lScale = pNode->EvaluateLocalTransform(pTime).GetS();
+  if (isnan(lScale[0]) || isnan(lScale[1]) || isnan(lScale[2])) {
+    return FbxVector4(0, 0, 0, 1);
+  }
 
   if (pNode->GetParent() == nullptr ||
       pNode->GetTransform().GetInheritType() != FbxTransform::eInheritRrs) {
@@ -794,7 +797,7 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
       continue;
     }
     if (verboseOutput) {
-      fmt::printf("animation %zu: %s (%d%%)", animIx, (const char*)animStackName, 0);
+      fmt::printf("animation %zu: %s (%d%%)\n", animIx, (const char*)animStackName, 0);
     }
 
     FbxTime start = takeInfo->mLocalTimeSpan.GetStart();
@@ -818,14 +821,25 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
     for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
       FbxNode* pNode = pScene->GetNode(nodeIndex);
       const FbxAMatrix baseTransform = pNode->EvaluateLocalTransform();
-      const FbxVector4 baseTranslation = baseTransform.GetT();
-      const FbxQuaternion baseRotation = baseTransform.GetQ();
+      FbxVector4 baseTranslation = baseTransform.GetT();
+      FbxQuaternion baseRotation = baseTransform.GetQ();
       const FbxVector4 baseScaling = computeLocalScale(pNode);
       bool hasTranslation = false;
       bool hasRotation = false;
       bool hasScale = false;
       bool hasMorphs = false;
 
+      if (isnan(baseTranslation[0]) || isnan(baseTranslation[1]) || isnan(baseTranslation[2]) || isnan(baseTranslation[3])) {
+        baseTranslation = FbxVector4(0, 0, 0, 1);
+      }
+
+      if (isnan(baseRotation[0]) || isnan(baseRotation[1]) || isnan(baseRotation[2]) || isnan(baseRotation[3])) {
+        baseRotation = FbxQuaternion(0, 0, 0, 1);
+      }
+
+      fmt::printf("Node %s\n", pNode->GetName());
+      fmt::printf("baseTranslation: %f, %f, %f\n", baseTranslation[0], baseTranslation[1], baseTranslation[2]);
+      fmt::printf("baseRotation: %f, %f, %f, %f\n", baseRotation[0], baseRotation[1], baseRotation[2], baseRotation[3]);
       fmt::printf("baseScaling: %f, %f, %f\n", baseScaling[0], baseScaling[1], baseScaling[2]);
 
       RawChannel channel;
@@ -953,7 +967,7 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
 
       if (verboseOutput) {
         fmt::printf(
-            "\ranimation %d: %s (%d%%)",
+            "\ranimation %d: %s (%d%%)\n",
             animIx,
             (const char*)animStackName,
             nodeIndex * 100 / nodeCount);
