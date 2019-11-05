@@ -793,6 +793,7 @@ ModelData* Raw2Gltf(
 
   {
     std::vector<std::string> extensionsUsed, extensionsRequired;
+    extensionsUsed.push_back(KHR_TEXTURE_TRANSFORM);
     if (options.useKHRMatUnlit) {
       extensionsUsed.push_back(KHR_MATERIALS_CMN_UNLIT);
     }

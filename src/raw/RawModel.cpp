@@ -138,7 +138,10 @@ int RawModel::AddTexture(
     const std::string& name,
     const std::string& fileName,
     const std::string& fileLocation,
-    RawTextureUsage usage) {
+    RawTextureUsage usage,
+    Vec2f translation,
+    float rotation,
+    Vec2f scale) {
   if (name.empty()) {
     return -1;
   }
@@ -156,6 +159,9 @@ int RawModel::AddTexture(
 
   RawTexture texture;
   texture.name = name;
+  texture.translation = translation;
+  texture.rotation = rotation;
+  texture.scale = scale;
   texture.width = properties.width;
   texture.height = properties.height;
   texture.mipLevels =
@@ -195,10 +201,10 @@ int RawModel::AddMaterial(
     const int textures[RAW_TEXTURE_USAGE_MAX],
     std::shared_ptr<RawMatProps> materialInfo,
     const std::vector<std::string>& userProperties) {
-      auto it = materialIdToIndex.find(id);
-      if (it != materialIdToIndex.end()) {
-        return it->second;
-      }
+  auto it = materialIdToIndex.find(id);
+  if (it != materialIdToIndex.end()) {
+    return it->second;
+  }
 
   //fmt::printf("Material count %d, id %d\n", materials.size(), id);
   for (size_t i = 0; i < materials.size(); i++) {
@@ -294,7 +300,10 @@ int RawModel::AddSurface(const RawSurface& surface) {
 }
 
 int RawModel::AddSurface(const char* name, const long surfaceId) {
-  assert(name[0] != '\0');
+  std::string n = name;
+  if (n.empty()) {
+    n = std::to_string(surfaceId);
+  }
 
   auto it = surfaceIdToIndex.find(surfaceId);
   if (it != surfaceIdToIndex.end()) {
@@ -308,7 +317,7 @@ int RawModel::AddSurface(const char* name, const long surfaceId) {
   }
   RawSurface surface;
   surface.id = surfaceId;
-  surface.name = name;
+  surface.name = n;
   surface.bounds.Clear();
   surface.discrete = false;
   surface.index = (int)surfaces.size();
@@ -449,7 +458,7 @@ void RawModel::Condense() {
         if (material.textures[j] >= 0) {
           const RawTexture& texture = oldTextures[material.textures[j]];
           const int textureIndex =
-              AddTexture(texture.name, texture.fileName, texture.fileLocation, texture.usage);
+              AddTexture(texture.name, texture.fileName, texture.fileLocation, texture.usage, texture.translation, texture.rotation, texture.scale);
           textures[textureIndex] = texture;
           material.textures[j] = textureIndex;
         }
