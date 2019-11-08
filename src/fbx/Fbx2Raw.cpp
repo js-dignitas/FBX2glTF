@@ -238,8 +238,13 @@ static void ReadMesh(
         if (tex != nullptr) {
           // dig out the inferred filename from the textureLocations map
           FbxString inferredPath = textureLocations.find(tex)->second;
+
+          Vec2f translation(tex->GetTranslationU(), tex->GetTranslationV());
+          float rotation = tex->GetRotationW(); // FIXME is this right?
+          Vec2f scale(tex->GetScaleU(), tex->GetScaleV());
+
           textures[usage] =
-              raw.AddTexture(tex->GetName(), tex->GetFileName(), inferredPath.Buffer(), usage);
+              raw.AddTexture(tex->GetName(), tex->GetFileName(), inferredPath.Buffer(), usage, translation, rotation, scale);
         }
       };
 

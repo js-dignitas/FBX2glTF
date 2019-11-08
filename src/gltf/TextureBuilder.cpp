@@ -48,6 +48,9 @@ std::shared_ptr<TextureData> TextureBuilder::combine(
   }
 
   int width = -1, height = -1;
+  Vec2f translation(0.0f, 0.0f);
+  float rotation = 0.0f;
+  Vec2f scale(1.0f, 1.0f);
   std::string mergedFilename = tag;
   std::vector<TexInfo> texes{};
   for (const int rawTexIx : ixVec) {
@@ -65,6 +68,9 @@ std::shared_ptr<TextureData> TextureBuilder::combine(
           if (width < 0) {
             width = info.width;
             height = info.height;
+            translation = rawTex.translation;
+            rotation = rawTex.rotation;
+            scale = rawTex.scale;
           } else if (width != info.width || height != info.height) {
             fmt::printf(
                 "Warning: texture %s (%d, %d) can't be merged with previous texture(s) of dimension (%d, %d)\n",
@@ -172,7 +178,7 @@ std::shared_ptr<TextureData> TextureBuilder::combine(
     image = new ImageData(mergedName, imageFilename);
   }
   std::shared_ptr<TextureData> texDat = gltf.textures.hold(
-      new TextureData(mergedName, *gltf.defaultSampler, *gltf.images.hold(image)));
+      new TextureData(mergedName, *gltf.defaultSampler, *gltf.images.hold(image), translation, rotation, scale));
   textureByIndicesKey.insert(std::make_pair(key, texDat));
   return texDat;
 }
@@ -218,7 +224,7 @@ std::shared_ptr<TextureData> TextureBuilder::simple(int rawTexIndex, const std::
   }
 
   std::shared_ptr<TextureData> texDat = gltf.textures.hold(
-      new TextureData(textureName, *gltf.defaultSampler, *gltf.images.hold(image)));
+      new TextureData(textureName, *gltf.defaultSampler, *gltf.images.hold(image), rawTexture.translation, rawTexture.rotation, rawTexture.scale));
   textureByIndicesKey.insert(std::make_pair(key, texDat));
   return texDat;
 }

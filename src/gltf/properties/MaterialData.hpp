@@ -15,10 +15,13 @@
 
 struct Tex {
   static std::unique_ptr<Tex> ref(const TextureData* tex, uint32_t texCoord = 0);
-  explicit Tex(uint32_t texRef, uint32_t texCoord);
+  explicit Tex(uint32_t texRef, uint32_t texCoord, Vec2f translation, float rotation, Vec2f scale);
 
   const uint32_t texRef;
   const uint32_t texCoord;
+  const Vec2f translation;
+  const float rotation;
+  const Vec2f scale;
 };
 
 struct KHRCmnUnlitMaterial {

@@ -170,6 +170,9 @@ struct RawTexture {
   int height;
   int mipLevels;
   RawTextureUsage usage;
+  Vec2f translation;
+  float rotation;
+  Vec2f scale;
   RawTextureOcclusion occlusion;
   std::string fileName; // original filename in FBX file
   std::string fileLocation; // inferred path in local filesystem, or ""
@@ -385,7 +388,10 @@ class RawModel {
       const std::string& name,
       const std::string& fileName,
       const std::string& fileLocation,
-      RawTextureUsage usage);
+      RawTextureUsage usage,
+      Vec2f translation,
+      float rotation,
+      Vec2f scale);
   int AddMaterial(const RawMaterial& material);
   int AddMaterial(
       const long id,
