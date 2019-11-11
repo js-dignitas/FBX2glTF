@@ -27,6 +27,7 @@
 #undef isnan
 #endif
 
+#include <vector>
 #include "mathfu.hpp"
 
 // give all modules access to our tweaked JSON
