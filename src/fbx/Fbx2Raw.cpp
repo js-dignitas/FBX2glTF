@@ -797,7 +797,7 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
 
     FbxTakeInfo* takeInfo = pScene->GetTakeInfo(animStackName);
     if (takeInfo == nullptr) {
-      fmt::printf("Warning:: animation '%s' has no Take information. Skipping.\n", animStackName);
+      fmt::printf("Warning:: animation '%s' has no Take information. Skipping.\n", animStackName.Buffer());
       // not all animstacks have a take
       continue;
     }
