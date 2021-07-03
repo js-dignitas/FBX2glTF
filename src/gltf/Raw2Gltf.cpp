@@ -311,7 +311,7 @@ ModelData* Raw2Gltf(
           if (material.info->shadingModel == RAW_SHADING_MODEL_BLINN ||
               material.info->shadingModel == RAW_SHADING_MODEL_PHONG) {
             // blinn/phong hardcoded to 0.4 metallic
-            metallic = 0.4f;
+            metallic = 0.0f;
 
             // fairly arbitrary conversion equation, with properties:
             //   shininess 0 -> roughness 1
@@ -340,7 +340,8 @@ ModelData* Raw2Gltf(
               metallic = roughness = 1.0f;
             } else {
               // no shininess texture,
-              roughness = getRoughness(props->shininess);
+//              roughness = getRoughness(props->shininess);
+              roughness = 0.8f;
             }
 
           } else {
