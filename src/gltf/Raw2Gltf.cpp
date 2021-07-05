@@ -589,14 +589,14 @@ ModelData* Raw2Gltf(
             if (blendVertex.position.Length() > 0.00) {
               isSparseVertex = true;
             }
-            if (options.useBlendShapeNormals && channel.hasNormals &&
-                blendVertex.normal.Length() > 0.00) {
-              isSparseVertex = true;
-            }
-            if (options.useBlendShapeTangents && channel.hasTangents &&
-                blendVertex.tangent.Length() > 0.00) {
-              isSparseVertex = true;
-            }
+//            if (options.useBlendShapeNormals && channel.hasNormals &&
+//                blendVertex.normal.Length() > 0.00) {
+//              isSparseVertex = true;
+//            }
+//            if (options.useBlendShapeTangents && channel.hasTangents &&
+//                blendVertex.tangent.Length() > 0.00) {
+//              isSparseVertex = true;
+//            }
             if (isSparseVertex == true) {
               sparseIndices.push_back(jj);
               positions.push_back(blendVertex.position);
