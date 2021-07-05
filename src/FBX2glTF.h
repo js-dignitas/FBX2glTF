@@ -112,8 +112,8 @@ struct GltfOptions {
   /** Whether to include lights through the KHR_punctual_lights extension. */
   bool useKHRLightsPunctual{true};
 
-  /** Whether to use sparse accessors in blend shapes */
-  bool enableSparseBlendShapes{false};
+  /** Whether to not use sparse accessors in blend shapes */
+  bool disableSparseBlendShapes{false};
   /** Whether to include blend shape normals, if present according to the SDK. */
   bool useBlendShapeNormals{false};
   /** Whether to include blend shape tangents, if present according to the SDK. */

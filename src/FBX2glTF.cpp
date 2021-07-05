@@ -143,9 +143,9 @@ int main(int argc, char* argv[]) {
       "Transcribe FBX User Properties into glTF node and material 'extras'.");
 
   app.add_flag(
-      "--blend-shape-sparse",
-      gltfOptions.enableSparseBlendShapes,
-      "Use sparse accessors to store blend shapes");
+      "--blend-shape-no-sparse",
+      gltfOptions.disableSparseBlendShapes,
+      "Don't use sparse accessors to store blend shapes");
 
   app.add_flag(
       "--blend-shape-normals",
