@@ -10,7 +10,9 @@
 
 #include <string>
 
+#ifdef USE_DRACO
 #include <draco/compression/encode.h>
+#endif
 
 #include "gltf/Raw2Gltf.hpp"
 

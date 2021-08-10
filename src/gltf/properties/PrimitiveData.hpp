@@ -21,11 +21,14 @@ struct PrimitiveData {
     TRIANGLE_FAN
   };
 
+#ifdef USE_DRACO
   PrimitiveData(
       const AccessorData& indices,
       const MaterialData& material,
-      std::shared_ptr<draco::Mesh> dracoMesh);
+      std::shared_ptr<draco::Mesh> dracoMesh
+  );
 
+#endif
   PrimitiveData(const AccessorData& indices, const MaterialData& material);
 
   void AddAttrib(std::string name, const AccessorData& accessor);
@@ -35,6 +38,7 @@ struct PrimitiveData {
       const AccessorData* normals,
       const AccessorData* tangents);
 
+#ifdef USE_DRACO
   template <class T>
   void AddDracoAttrib(const AttributeDefinition<T> attribute, const std::vector<T>& attribArr) {
     draco::PointAttribute att;
@@ -62,6 +66,7 @@ struct PrimitiveData {
   }
 
   void NoteDracoBuffer(const BufferViewData& data);
+#endif
 
   const int indices;
   const unsigned int material;
@@ -71,10 +76,11 @@ struct PrimitiveData {
   std::vector<std::string> targetNames{};
 
   std::map<std::string, int> attributes;
+#ifdef USE_DRACO
   std::map<std::string, int> dracoAttributes;
-
   std::shared_ptr<draco::Mesh> dracoMesh;
   int dracoBufferView;
+#endif
 };
 
 void to_json(json& j, const PrimitiveData& d);
