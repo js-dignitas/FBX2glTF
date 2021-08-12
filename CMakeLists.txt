@@ -13,6 +13,7 @@ if ("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
 endif ()
 
 set(CMAKE_CXX_STANDARD 11)
+set(USE_DRACO ON CACHE BOOL "Draco compression support")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 include(ExternalProject)
@@ -54,6 +55,7 @@ find_package(fmt MODULE REQUIRED)
 # create a compilation database for e.g. clang-tidy
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if (USE_DRACO)
 # DRACO
 ExternalProject_Add(Draco
   GIT_REPOSITORY https://github.com/google/draco
@@ -64,11 +66,14 @@ ExternalProject_Add(Draco
         -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
         -DBUILD_FOR_GLTF=1
 )
+
 set(DRACO_INCLUDE_DIR "${CMAKE_BINARY_DIR}/draco/include")
 if (WIN32)
    set(DRACO_LIB "${CMAKE_BINARY_DIR}/draco/lib/dracoenc.lib")
 else()
    set(DRACO_LIB "${CMAKE_BINARY_DIR}/draco/lib/libdracoenc.a")
+endif()
+
 endif()
 
 # MATHFU
@@ -180,8 +185,12 @@ set_target_properties(libFBX2glTF PROPERTIES OUTPUT_NAME "FBX2glTF")
 add_executable(appFBX2glTF src/FBX2glTF.cpp)
 set_target_properties(appFBX2glTF PROPERTIES OUTPUT_NAME "FBX2glTF")
 
+if (USE_DRACO)
+    add_definitions(-DUSE_DRACO)
+    add_dependencies(libFBX2glTF Draco)
+endif()
+
 add_dependencies(libFBX2glTF
-  Draco
   MathFu
   FiFoMap
   CPPCodec

@@ -13,8 +13,9 @@
 
 // This can be a macro under Windows, confusing Draco
 #undef ERROR
+#ifdef USE_DRACO
 #include <draco/compression/encode.h>
-
+#endif
 #include "FBX2glTF.h"
 #include "raw/RawModel.hpp"
 
@@ -129,9 +130,12 @@ struct AttributeDefinition {
   const std::string gltfName;
   const T RawVertex::*rawAttributeIx;
   const GLType glType;
+#ifdef USE_DRACO
   const draco::GeometryAttribute::Type dracoAttribute;
   const draco::DataType dracoComponentType;
+#endif
 
+#ifdef USE_DRACO
   AttributeDefinition(
       const std::string gltfName,
       const T RawVertex::*rawAttributeIx,
@@ -142,17 +146,21 @@ struct AttributeDefinition {
         rawAttributeIx(rawAttributeIx),
         glType(_glType),
         dracoAttribute(dracoAttribute),
-        dracoComponentType(dracoComponentType) {}
-
+        dracoComponentType(dracoComponentType) {
+  }
+#endif
   AttributeDefinition(
       const std::string gltfName,
       const T RawVertex::*rawAttributeIx,
       const GLType& _glType)
       : gltfName(gltfName),
         rawAttributeIx(rawAttributeIx),
-        glType(_glType),
-        dracoAttribute(draco::GeometryAttribute::INVALID),
-        dracoComponentType(draco::DataType::DT_INVALID) {}
+        glType(_glType)
+#ifdef USE_DRACO
+      ,dracoAttribute(draco::GeometryAttribute::INVALID),
+        dracoComponentType(draco::DataType::DT_INVALID) 
+#endif
+  {}
 };
 
 struct AccessorData;
