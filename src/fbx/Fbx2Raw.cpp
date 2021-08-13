@@ -96,6 +96,30 @@ static RawMaterialType GetMaterialType(
   return skinned ? RAW_MATERIAL_TYPE_SKINNED_OPAQUE : RAW_MATERIAL_TYPE_OPAQUE;
 }
 
+static void calcMinMax(
+    RawSurface& rawSurface,
+    const FbxSkinningAccess& skinning,
+    const FbxVector4& globalPosition,
+    const std::vector<RawVertexSkinningInfo>& indicesAndWeights) {
+  for (int i = 0; i < indicesAndWeights.size(); i++) {
+    if (indicesAndWeights[i].jointWeight > 0.0f) {
+      const FbxVector4 localPosition =
+          skinning.GetJointInverseGlobalTransforms(indicesAndWeights[i].jointIndex)
+              .MultNormalize(globalPosition);
+
+      Vec3f& mins = rawSurface.jointGeometryMins[indicesAndWeights[i].jointIndex];
+      mins[0] = std::min(mins[0], (float)localPosition[0]);
+      mins[1] = std::min(mins[1], (float)localPosition[1]);
+      mins[2] = std::min(mins[2], (float)localPosition[2]);
+
+      Vec3f& maxs = rawSurface.jointGeometryMaxs[indicesAndWeights[i].jointIndex];
+      maxs[0] = std::max(maxs[0], (float)localPosition[0]);
+      maxs[1] = std::max(maxs[1], (float)localPosition[1]);
+      maxs[2] = std::max(maxs[2], (float)localPosition[2]);
+    }
+  }
+}
+
 static void ReadMesh(
     RawModel& raw,
     FbxScene* pScene,
@@ -184,10 +208,6 @@ static void ReadMesh(
   }
   if (uvLayer1.LayerPresent()) {
     raw.AddVertexAttribute(RAW_VERTEX_ATTRIBUTE_UV1);
-  }
-  if (skinning.IsSkinned()) {
-    raw.AddVertexAttribute(RAW_VERTEX_ATTRIBUTE_JOINT_WEIGHTS);
-    raw.AddVertexAttribute(RAW_VERTEX_ATTRIBUTE_JOINT_INDICES);
   }
 
   RawSurface& rawSurface = raw.GetSurface(rawSurfaceIndex);
@@ -369,8 +389,15 @@ static void ReadMesh(
       vertex.uv0[1] = (float)fbxUV0[1];
       vertex.uv1[0] = (float)fbxUV1[0];
       vertex.uv1[1] = (float)fbxUV1[1];
-      vertex.jointIndices = skinning.GetVertexIndices(controlPointIndex);
-      vertex.jointWeights = skinning.GetVertexWeights(controlPointIndex);
+      if (skinning.IsSkinned()) {
+        const std::vector<FbxVertexSkinningInfo> skinningInfo =
+            skinning.GetVertexSkinningInfo(controlPointIndex);
+        for (int skinningIndex = 0; skinningIndex < skinningInfo.size(); skinningIndex++) {
+          const FbxVertexSkinningInfo& sourceSkinningInfo = skinningInfo[skinningIndex];
+          vertex.skinningInfo.push_back(
+              RawVertexSkinningInfo{sourceSkinningInfo.jointId, sourceSkinningInfo.weight});
+        }
+      }
       vertex.polarityUv0 = false;
 
       // flag this triangle as transparent if any of its corner vertices substantially deviates from
@@ -414,38 +441,13 @@ static void ReadMesh(
       }
 
       if (skinning.IsSkinned()) {
-        const int jointIndices[FbxSkinningAccess::MAX_WEIGHTS] = {vertex.jointIndices[0],
-                                                                  vertex.jointIndices[1],
-                                                                  vertex.jointIndices[2],
-                                                                  vertex.jointIndices[3]};
-        const float jointWeights[FbxSkinningAccess::MAX_WEIGHTS] = {vertex.jointWeights[0],
-                                                                    vertex.jointWeights[1],
-                                                                    vertex.jointWeights[2],
-                                                                    vertex.jointWeights[3]};
-        const FbxMatrix skinningMatrix =
-            skinning.GetJointSkinningTransform(jointIndices[0]) * jointWeights[0] +
-            skinning.GetJointSkinningTransform(jointIndices[1]) * jointWeights[1] +
-            skinning.GetJointSkinningTransform(jointIndices[2]) * jointWeights[2] +
-            skinning.GetJointSkinningTransform(jointIndices[3]) * jointWeights[3];
+        FbxMatrix skinningMatrix = FbxMatrix() * 0.0;
+        for (int j = 0; j < vertex.skinningInfo.size(); j++)
+          skinningMatrix += skinning.GetJointSkinningTransform(vertex.skinningInfo[j].jointIndex) *
+              vertex.skinningInfo[j].jointWeight;
 
         const FbxVector4 globalPosition = skinningMatrix.MultNormalize(fbxPosition);
-        for (int i = 0; i < FbxSkinningAccess::MAX_WEIGHTS; i++) {
-          if (jointWeights[i] > 0.0f) {
-            const FbxVector4 localPosition =
-                skinning.GetJointInverseGlobalTransforms(jointIndices[i])
-                    .MultNormalize(globalPosition);
-
-            Vec3f& mins = rawSurface.jointGeometryMins[jointIndices[i]];
-            mins[0] = std::min(mins[0], (float)localPosition[0]);
-            mins[1] = std::min(mins[1], (float)localPosition[1]);
-            mins[2] = std::min(mins[2], (float)localPosition[2]);
-
-            Vec3f& maxs = rawSurface.jointGeometryMaxs[jointIndices[i]];
-            maxs[0] = std::max(maxs[0], (float)localPosition[0]);
-            maxs[1] = std::max(maxs[1], (float)localPosition[1]);
-            maxs[2] = std::max(maxs[2], (float)localPosition[2]);
-          }
-        }
+        calcMinMax(rawSurface, skinning, globalPosition, vertex.skinningInfo);
       }
     }
 
@@ -761,7 +763,6 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
       eMode = FbxTime::eFrames60;
       break;
   }
-  const double epsilon = 1e-5f;
 
   const int animationCount = pScene->GetSrcObjectCount<FbxAnimStack>();
   for (size_t animIx = 0; animIx < animationCount; animIx++) {
@@ -838,10 +839,6 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
       const FbxVector4 baseTranslation = baseTransform.GetT();
       const FbxQuaternion baseRotation = baseTransform.GetQ();
       const FbxVector4 baseScaling = computeLocalScale(pNode);
-      bool hasTranslation = false;
-      bool hasRotation = false;
-      bool hasScale = false;
-      bool hasMorphs = false;
 
       RawChannel channel;
       channel.nodeIndex = raw.GetNodeById(pNode->GetUniqueID());
@@ -854,20 +851,6 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
         const FbxVector4 localTranslation = localTransform.GetT();
         const FbxQuaternion localRotation = localTransform.GetQ();
         const FbxVector4 localScale = computeLocalScale(pNode, pTime);
-
-        hasTranslation |=
-            (fabs(localTranslation[0] - baseTranslation[0]) > epsilon ||
-             fabs(localTranslation[1] - baseTranslation[1]) > epsilon ||
-             fabs(localTranslation[2] - baseTranslation[2]) > epsilon);
-        hasRotation |=
-            (fabs(localRotation[0] - baseRotation[0]) > epsilon ||
-             fabs(localRotation[1] - baseRotation[1]) > epsilon ||
-             fabs(localRotation[2] - baseRotation[2]) > epsilon ||
-             fabs(localRotation[3] - baseRotation[3]) > epsilon);
-        hasScale |=
-            (fabs(localScale[0] - baseScaling[0]) > epsilon ||
-             fabs(localScale[1] - baseScaling[1]) > epsilon ||
-             fabs(localScale[2] - baseScaling[2]) > epsilon);
 
         channel.translations.push_back(toVec3f(localTranslation) * scaleFactor);
         channel.rotations.push_back(toQuatf(localRotation));
@@ -922,7 +905,6 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
                 if (!std::isnan(result)) {
                   // we're transitioning into targetIx
                   channel.weights.push_back(result);
-                  hasMorphs = true;
                   continue;
                 }
                 if (targetIx != targetCount - 1) {
@@ -930,7 +912,6 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
                   if (!std::isnan(result)) {
                     // we're transitioning AWAY from targetIx
                     channel.weights.push_back(1.0f - result);
-                    hasMorphs = true;
                     continue;
                   }
                 }
@@ -944,27 +925,12 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
         }
       }
 
-      if (hasTranslation || hasRotation || hasScale || hasMorphs) {
-        if (!hasTranslation) {
-          channel.translations.clear();
-        }
-        if (!hasRotation) {
-          channel.rotations.clear();
-        }
-        if (!hasScale) {
-          channel.scales.clear();
-        }
-        if (!hasMorphs) {
-          channel.weights.clear();
-        }
+      animation.channels.emplace_back(channel);
 
-        animation.channels.emplace_back(channel);
-
-        totalSizeInBytes += channel.translations.size() * sizeof(channel.translations[0]) +
-            channel.rotations.size() * sizeof(channel.rotations[0]) +
-            channel.scales.size() * sizeof(channel.scales[0]) +
-            channel.weights.size() * sizeof(channel.weights[0]);
-      }
+      totalSizeInBytes += channel.translations.size() * sizeof(channel.translations[0]) +
+          channel.rotations.size() * sizeof(channel.rotations[0]) +
+          channel.scales.size() * sizeof(channel.scales[0]) +
+          channel.weights.size() * sizeof(channel.weights[0]);
 
       if (verboseOutput) {
         fmt::printf(

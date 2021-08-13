@@ -19,7 +19,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 include(ExternalProject)
 
 # FBX
-foreach (FBXSDK_VERSION "2019.2")
+foreach (FBXSDK_VERSION "2020.2")
   find_package(FBX)
   if (FBXSDK_FOUND)
     break()
@@ -46,10 +46,9 @@ find_package(Threads REQUIRED)
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_BINARY_DIR}")
 
 # stuff we get from Conan
-find_package(boost_filesystem MODULE REQUIRED)
-find_package(boost_optional MODULE REQUIRED)
+find_package(Boost 1.76 COMPONENTS system filesystem program_options REQUIRED )
 find_package(libxml2 MODULE REQUIRED)
-find_package(zlib MODULE REQUIRED)
+find_package(ZLIB MODULE REQUIRED)
 find_package(fmt MODULE REQUIRED)
 
 # create a compilation database for e.g. clang-tidy
@@ -59,7 +58,7 @@ if (USE_DRACO)
 # DRACO
 ExternalProject_Add(Draco
   GIT_REPOSITORY https://github.com/google/draco
-  GIT_TAG 1.3.4
+  GIT_TAG 75b82f7b68c797b4e0ff5e73ca8a81e2db3db797
   PREFIX draco
   INSTALL_DIR
   CMAKE_ARGS
@@ -68,10 +67,15 @@ ExternalProject_Add(Draco
 )
 
 set(DRACO_INCLUDE_DIR "${CMAKE_BINARY_DIR}/draco/include")
+find_file(FEDORA_FOUND fedora-release
+  PATHS /etc
+)
 if (WIN32)
-   set(DRACO_LIB "${CMAKE_BINARY_DIR}/draco/lib/dracoenc.lib")
+   set(DRACO_LIB "${CMAKE_BINARY_DIR}/draco/lib/${CMAKE_SHARED_MODULE_PREFIX}draco.lib")
+elseif(FEDORA_FOUND)
+  set(DRACO_LIB "${CMAKE_BINARY_DIR}/draco/lib64/${CMAKE_SHARED_MODULE_PREFIX}draco.a")
 else()
-   set(DRACO_LIB "${CMAKE_BINARY_DIR}/draco/lib/libdracoenc.a")
+  set(DRACO_LIB "${CMAKE_BINARY_DIR}/draco/lib/${CMAKE_SHARED_MODULE_PREFIX}draco.a")
 endif()
 
 endif()
@@ -120,6 +124,7 @@ endif()
 
 set(LIB_SOURCE_FILES
         src/FBX2glTF.h
+        src/fbx/materials/ArnoldStandardMaterial.cpp
         src/fbx/materials/3dsMaxPhysicalMaterial.cpp
         src/fbx/materials/FbxMaterials.cpp
         src/fbx/materials/FbxMaterials.hpp
@@ -210,14 +215,14 @@ endif()
 
 target_link_libraries(libFBX2glTF
   ${FRAMEWORKS}
-  boost_filesystem::boost_filesystem
-  boost_optional::boost_optional
   ${DRACO_LIB}
+  Boost::system
+  Boost::filesystem
   optimized ${FBXSDK_LIBRARY}
   debug ${FBXSDK_LIBRARY_DEBUG}
   fmt::fmt
   libxml2::libxml2
-  zlib::zlib
+  ZLIB::ZLIB
   ${CMAKE_DL_LIBS}
   ${CMAKE_THREAD_LIBS_INIT}
 )

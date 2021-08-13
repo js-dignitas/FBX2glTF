@@ -156,12 +156,6 @@ ModelData* Raw2Gltf(
     for (int i = 0; i < raw.GetAnimationCount(); i++) {
       const RawAnimation& animation = raw.GetAnimation(i);
 
-      if (animation.channels.size() == 0) {
-        fmt::printf(
-            "Warning: animation '%s' has zero channels. Skipping.\n", animation.name.c_str());
-        continue;
-      }
-
       auto accessor = gltf->AddAccessorAndView(buffer, GLT_FLOAT, animation.times);
       accessor->min = {*std::min_element(std::begin(animation.times), std::end(animation.times))};
       accessor->max = {*std::max_element(std::begin(animation.times), std::end(animation.times))};
@@ -226,7 +220,7 @@ ModelData* Raw2Gltf(
     // materials
     //
 
-    for (int materialIndex = 0; materialIndex < raw.GetMaterialCount(); materialIndex++) {
+   for (int materialIndex = 0; materialIndex < raw.GetMaterialCount(); materialIndex++) {
       const RawMaterial& material = raw.GetMaterial(materialIndex);
       const bool isTransparent = material.type == RAW_MATERIAL_TYPE_TRANSPARENT ||
           material.type == RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT;
@@ -317,7 +311,7 @@ ModelData* Raw2Gltf(
           if (material.info->shadingModel == RAW_SHADING_MODEL_BLINN ||
               material.info->shadingModel == RAW_SHADING_MODEL_PHONG) {
             // blinn/phong hardcoded to 0.4 metallic
-            metallic = 0.4f;
+            metallic = 0.0f;
 
             // fairly arbitrary conversion equation, with properties:
             //   shininess 0 -> roughness 1
@@ -346,7 +340,8 @@ ModelData* Raw2Gltf(
               metallic = roughness = 1.0f;
             } else {
               // no shininess texture,
-              roughness = getRoughness(props->shininess);
+//              roughness = getRoughness(props->shininess);
+              roughness = 0.8f;
             }
 
           } else {
@@ -418,6 +413,9 @@ ModelData* Raw2Gltf(
           surfaceModel.GetMaterial(surfaceModel.GetTriangle(0).materialIndex);
       const MaterialData& mData = require(materialsById, rawMaterial.id);
 
+      if (verboseOutput)
+        fmt::printf("\rMaterial Name: %s\n", mData.name);
+
       MeshData* mesh = nullptr;
       auto meshIter = meshBySurfaceId.find(surfaceId);
       if (meshIter != meshBySurfaceId.end()) {
@@ -474,6 +472,16 @@ ModelData* Raw2Gltf(
       //
       // surface vertices
       //
+      // Base Accessors needed for Sparse Accessors
+      std::shared_ptr<AccessorData> pAccBase;
+      std::shared_ptr<AccessorData> nAccBase;
+      std::shared_ptr<AccessorData> tAccBase;
+
+      // Sparse accessors cannot be zero length, but morph targets can easily have
+      // no modified vertices in multiprim meshes. In order to utilise sparse accessors
+      // in this case, we need a couple of single element dummy buffer views to reference.
+      std::shared_ptr<BufferViewData> dummyIdxView;
+      std::shared_ptr<BufferViewData> dummyDataView;
       {
         if ((surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_POSITION) != 0) {
           const AttributeDefinition<Vec3f> ATTR_POSITION(
@@ -490,6 +498,8 @@ ModelData* Raw2Gltf(
 
           accessor->min = toStdVec(rawSurface.bounds.min);
           accessor->max = toStdVec(rawSurface.bounds.max);
+
+          pAccBase = accessor;
         }
         if ((surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_NORMAL) != 0) {
           const AttributeDefinition<Vec3f> ATTR_NORMAL(
@@ -503,11 +513,13 @@ ModelData* Raw2Gltf(
           );
           const auto _ =
               gltf->AddAttributeToPrimitive<Vec3f>(buffer, surfaceModel, *primitive, ATTR_NORMAL);
+          nAccBase = _;
         }
         if ((surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_TANGENT) != 0) {
           const AttributeDefinition<Vec4f> ATTR_TANGENT("TANGENT", &RawVertex::tangent, GLT_VEC4F);
-          const auto _ = gltf->AddAttributeToPrimitive<Vec4f>(
-              buffer, surfaceModel, *primitive, ATTR_TANGENT);
+          const auto _ =
+              gltf->AddAttributeToPrimitive<Vec4f>(buffer, surfaceModel, *primitive, ATTR_TANGENT);
+          tAccBase = _;
         }
         if ((surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_COLOR) != 0) {
           const AttributeDefinition<Vec4f> ATTR_COLOR(
@@ -549,30 +561,34 @@ ModelData* Raw2Gltf(
               buffer, surfaceModel, *primitive, ATTR_TEXCOORD_1);
         }
         if ((surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_JOINT_INDICES) != 0) {
-          const AttributeDefinition<Vec4i> ATTR_JOINTS(
-              "JOINTS_0",
-              &RawVertex::jointIndices,
-              GLT_VEC4I
+          for (int i = 0; i < surfaceModel.GetGlobalWeightCount(); i += 4) {
+            const AttributeArrayDefinition<Vec4i> ATTR_JOINTS(
+                std::string("JOINTS_") + std::to_string(i / 4),
+                &RawVertex::jointIndices,
+                GLT_VEC4I,
 #ifdef USE_DRACO
-              ,draco::GeometryAttribute::GENERIC,
-              draco::DT_UINT16
+                draco::GeometryAttribute::GENERIC,
+                draco::DT_UINT16,
 #endif
-          );
-          const auto _ =
-              gltf->AddAttributeToPrimitive<Vec4i>(buffer, surfaceModel, *primitive, ATTR_JOINTS);
+                i / 4);
+            const auto _ = gltf->AddAttributeArrayToPrimitive<Vec4i>(
+                buffer, surfaceModel, *primitive, ATTR_JOINTS);
+          }
         }
         if ((surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_JOINT_WEIGHTS) != 0) {
-          const AttributeDefinition<Vec4f> ATTR_WEIGHTS(
-              "WEIGHTS_0",
-              &RawVertex::jointWeights,
-              GLT_VEC4F
+          for (int i = 0; i < surfaceModel.GetGlobalWeightCount(); i += 4) {
+            const AttributeArrayDefinition<Vec4f> ATTR_WEIGHTS(
+                std::string("WEIGHTS_") + std::to_string(i / 4),
+                &RawVertex::jointWeights,
+                GLT_VEC4F,
 #ifdef USE_DRACO
-              ,draco::GeometryAttribute::GENERIC,
-              draco::DT_FLOAT32
+                draco::GeometryAttribute::GENERIC,
+                draco::DT_FLOAT32,
 #endif
-          );
-          const auto _ =
-              gltf->AddAttributeToPrimitive<Vec4f>(buffer, surfaceModel, *primitive, ATTR_WEIGHTS);
+                i / 4);
+            const auto _ = gltf->AddAttributeArrayToPrimitive<Vec4f>(
+                buffer, surfaceModel, *primitive, ATTR_WEIGHTS);
+          }
         }
 
         // each channel present in the mesh always ends up a target in the primitive
@@ -584,43 +600,133 @@ ModelData* Raw2Gltf(
 
           std::vector<Vec3f> positions, normals;
           std::vector<Vec4f> tangents;
+
+          std::vector<TriangleIndex> sparseIndices;
+
           for (int jj = 0; jj < surfaceModel.GetVertexCount(); jj++) {
             auto blendVertex = surfaceModel.GetVertex(jj).blends[channelIx];
             shapeBounds.AddPoint(blendVertex.position);
-            positions.push_back(blendVertex.position);
-            if (options.useBlendShapeTangents && channel.hasNormals) {
-              normals.push_back(blendVertex.normal);
+            bool isSparseVertex = options.disableSparseBlendShapes; // If sparse is off, add all vertices
+            // Check to see whether position, normal or tangent deviates from base mesh and flag as
+            // sparse.
+            if (blendVertex.position.Length() > 0.00) {
+              isSparseVertex = true;
             }
-            if (options.useBlendShapeTangents && channel.hasTangents) {
-              tangents.push_back(blendVertex.tangent);
+//            if (options.useBlendShapeNormals && channel.hasNormals &&
+//                blendVertex.normal.Length() > 0.00) {
+//              isSparseVertex = true;
+//            }
+//            if (options.useBlendShapeTangents && channel.hasTangents &&
+//                blendVertex.tangent.Length() > 0.00) {
+//              isSparseVertex = true;
+//            }
+            if (isSparseVertex == true) {
+              sparseIndices.push_back(jj);
+              positions.push_back(blendVertex.position);
+              if (options.useBlendShapeNormals && channel.hasNormals) {
+                normals.push_back(blendVertex.normal);
+              }
+              if (options.useBlendShapeTangents && channel.hasTangents) {
+                tangents.push_back(blendVertex.tangent);
+              }
             }
           }
-          std::shared_ptr<AccessorData> pAcc = gltf->AddAccessorWithView(
-              *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
-              GLT_VEC3F,
-              positions,
-              channel.name);
-          pAcc->min = toStdVec(shapeBounds.min);
-          pAcc->max = toStdVec(shapeBounds.max);
 
+          std::shared_ptr<AccessorData> pAcc;
           std::shared_ptr<AccessorData> nAcc;
-          if (!normals.empty()) {
-            nAcc = gltf->AddAccessorWithView(
+          std::shared_ptr<AccessorData> tAcc;
+          if (!options.disableSparseBlendShapes) {
+            if (verboseOutput)
+              fmt::printf(
+                  "\rChannel Name: %-50s Sparse Count: %d\n", channel.name, sparseIndices.size());
+
+            if (sparseIndices.size() == 0) {
+              // Initalize dummy bufferviews if needed
+              if (!dummyIdxView) {
+                std::vector<TriangleIndex> dummyIndices;
+                dummyIndices.push_back(int(0));
+
+                dummyIdxView = gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_NONE);
+                gltf->CopyToBufferView(
+                    *dummyIdxView, dummyIndices, useLongIndices ? GLT_UINT : GLT_USHORT);
+              }
+
+              if (!dummyDataView) {
+                std::vector<Vec3f> dummyData;
+                dummyData.push_back(Vec3f(0.0));
+
+                dummyDataView = gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_NONE);
+                dummyDataView->appendAsBinaryArray(dummyData, *gltf->binary, GLT_VEC3F);
+              }
+
+              // Set up sparse accessor with dummy buffer views
+              pAcc = gltf->AddSparseAccessor(
+                  *pAccBase,
+                  *dummyIdxView,
+                  useLongIndices ? GLT_UINT : GLT_USHORT,
+                  *dummyDataView,
+                  GLT_VEC3F,
+                  channel.name);
+            } else {
+              // Build Orphan Bufferview for Sparse Indices
+              std::shared_ptr<BufferViewData> indexBufferView =
+                  gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_NONE);
+              gltf->CopyToBufferView(
+                  *indexBufferView, sparseIndices, useLongIndices ? GLT_UINT : GLT_USHORT);
+
+              pAcc = gltf->AddSparseAccessorWithView(
+                  *pAccBase,
+                  *indexBufferView,
+                  useLongIndices ? GLT_UINT : GLT_USHORT,
+                  *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_NONE),
+                  GLT_VEC3F,
+                  positions,
+                  channel.name);
+              if (!normals.empty()) {
+                nAcc = gltf->AddSparseAccessorWithView(
+                    *nAccBase,
+                    *indexBufferView,
+                    useLongIndices ? GLT_UINT : GLT_USHORT,
+                    *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_NONE),
+                    GLT_VEC3F,
+                    normals,
+                    channel.name);
+              }
+              if (!tangents.empty()) {
+                tAcc = gltf->AddSparseAccessorWithView(
+                    *nAccBase,
+                    *indexBufferView,
+                    useLongIndices ? GLT_UINT : GLT_USHORT,
+                    *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_NONE),
+                    GLT_VEC4F,
+                    tangents,
+                    channel.name);
+              }
+            }
+          } else {
+            pAcc = gltf->AddAccessorWithView(
                 *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
                 GLT_VEC3F,
-                normals,
+                positions,
                 channel.name);
+            if (!normals.empty()) {
+              nAcc = gltf->AddAccessorWithView(
+                  *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
+                  GLT_VEC3F,
+                  normals,
+                  channel.name);
+            }
+            if (!tangents.empty()) {
+              nAcc = gltf->AddAccessorWithView(
+                  *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
+                  GLT_VEC4F,
+                  tangents,
+                  channel.name);
+            }
           }
 
-          std::shared_ptr<AccessorData> tAcc;
-          if (!tangents.empty()) {
-            nAcc = gltf->AddAccessorWithView(
-                *gltf->GetAlignedBufferView(buffer, BufferViewData::GL_ARRAY_BUFFER),
-                GLT_VEC4F,
-                tangents,
-                channel.name);
-          }
-
+          pAcc->min = toStdVec(shapeBounds.min);
+          pAcc->max = toStdVec(shapeBounds.max);
           primitive->AddTarget(pAcc.get(), nAcc.get(), tAcc.get());
         }
       }
@@ -658,7 +764,8 @@ ModelData* Raw2Gltf(
         draco::Status status = encoder.EncodeMeshToBuffer(*primitive->dracoMesh, &dracoBuffer);
         assert(status.code() == draco::Status::OK);
 
-        auto view = gltf->AddRawBufferView(buffer, dracoBuffer.data(), to_uint32(dracoBuffer.size()));
+        auto view =
+            gltf->AddRawBufferView(buffer, dracoBuffer.data(), to_uint32(dracoBuffer.size()));
         primitive->NoteDracoBuffer(*view);
 #else
           std::cerr << "Error: Draco not compiled\n";

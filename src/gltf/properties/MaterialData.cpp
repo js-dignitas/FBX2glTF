@@ -38,6 +38,8 @@ clamp(const Vec4f& vec, const Vec4f& bottom = VEC4F_ZERO, const Vec4f& top = VEC
   return Vec4f::Max(bottom, Vec4f::Min(top, vec));
 }
 
+bool isBlend = false;
+
 PBRMetallicRoughness::PBRMetallicRoughness(
     const TextureData* baseColorTexture,
     const TextureData* metRoughTexture,
@@ -56,7 +58,9 @@ void to_json(json& j, const PBRMetallicRoughness& d) {
     j["baseColorTexture"] = *d.baseColorTexture;
   }
   if (d.baseColorFactor.LengthSquared() > 0) {
-    j["baseColorFactor"] = toStdVec(d.baseColorFactor);
+    isBlend = d.baseColorFactor.w == 0.00f;
+//    j["baseColorFactor"] = toStdVec(d.baseColorFactor);
+    j["baseColorFactor"] = toStdVec(Vec4f(d.baseColorFactor.x, d.baseColorFactor.y, d.baseColorFactor.z, 1.0f));
   }
   if (d.metRoughTexture != nullptr) {
     j["metallicRoughnessTexture"] = *d.metRoughTexture;
@@ -93,7 +97,6 @@ MaterialData::MaterialData(
 
 json MaterialData::serialize() const {
   json result = {{"name", name},
-                 {"alphaMode", isTransparent ? "BLEND" : "OPAQUE"},
                  {"extras",
                   {{"fromFBX",
                     {{"shadingModel", Describe(shadingModel)},
@@ -119,6 +122,7 @@ json MaterialData::serialize() const {
     extensions[KHR_MATERIALS_CMN_UNLIT] = *khrCmnConstantMaterial;
     result["extensions"] = extensions;
   }
+  result["alphaMode"] = isBlend ? "BLEND" : "OPAQUE";
 
   for (const auto& i : userProperties) {
     auto& prop_map = result["extras"]["fromFBX"]["userProperties"];
