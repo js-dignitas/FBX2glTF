@@ -163,6 +163,35 @@ struct AttributeDefinition {
   {}
 };
 
+template <class T>
+struct AttributeArrayDefinition {
+  const std::string gltfName;
+  const std::vector<T> RawVertex::*rawAttributeIx;
+  const GLType glType;
+  const int arrayOffset;
+#ifdef USE_DRACO
+  const draco::GeometryAttribute::Type dracoAttribute;
+  const draco::DataType dracoComponentType;
+#endif
+  AttributeArrayDefinition(
+      const std::string gltfName,
+      const std::vector<T> RawVertex::*rawAttributeIx,
+      const GLType& _glType,
+#ifdef USE_DRACO
+      const draco::GeometryAttribute::Type dracoAttribute,
+      const draco::DataType dracoComponentType,
+#endif
+      const int arrayOffset)
+      : gltfName(gltfName),
+        rawAttributeIx(rawAttributeIx),
+        glType(_glType),
+#ifdef USE_DRACO
+        dracoAttribute(dracoAttribute),
+        dracoComponentType(dracoComponentType),
+#endif
+        arrayOffset(arrayOffset) {}
+};
+
 struct AccessorData;
 struct AnimationData;
 struct BufferData;

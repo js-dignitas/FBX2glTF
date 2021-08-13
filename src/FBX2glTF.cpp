@@ -143,6 +143,11 @@ int main(int argc, char* argv[]) {
       "Transcribe FBX User Properties into glTF node and material 'extras'.");
 
   app.add_flag(
+      "--blend-shape-no-sparse",
+      gltfOptions.disableSparseBlendShapes,
+      "Don't use sparse accessors to store blend shapes");
+
+  app.add_flag(
       "--blend-shape-normals",
       gltfOptions.useBlendShapeNormals,
       "Include blend shape normals, if reported present by the FBX SDK.");
@@ -151,6 +156,19 @@ int main(int argc, char* argv[]) {
       "--blend-shape-tangents",
       gltfOptions.useBlendShapeTangents,
       "Include blend shape tangents, if reported present by the FBX SDK.");
+
+  app.add_option(
+      "--normalize-weights",
+      gltfOptions.normalizeSkinningWeights,
+      "Normalize skinning weights.",
+      true);
+
+  app.add_option(
+         "--skinning-weights",
+         gltfOptions.maxSkinningWeights,
+         "The number of joint influences per vertex.",
+         true)
+      ->check(CLI::Range(0, 512));
 
   app.add_option(
          "-k,--keep-attribute",
@@ -216,7 +234,7 @@ int main(int argc, char* argv[]) {
   app.add_option(
          "--draco-bits-for-normals",
          gltfOptions.draco.quantBitsNormal,
-         "How many bits to quantize nornals to.",
+         "How many bits to quantize normals to.",
          true)
       ->check(CLI::Range(1, 32))
       ->group("Draco");
@@ -237,7 +255,9 @@ int main(int argc, char* argv[]) {
       ->check(CLI::Range(1, 32))
       ->group("Draco");
 
-  app.add_option("--fbx-temp-dir", gltfOptions.fbxTempDir, "Temporary directory to be used by FBX SDK.")->check(CLI::ExistingDirectory);
+  app.add_option(
+         "--fbx-temp-dir", gltfOptions.fbxTempDir, "Temporary directory to be used by FBX SDK.")
+      ->check(CLI::ExistingDirectory);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -334,7 +354,7 @@ int main(int argc, char* argv[]) {
   if (!texturesTransforms.empty()) {
     raw.TransformTextures(texturesTransforms);
   }
-  raw.Condense();
+  raw.Condense(gltfOptions.maxSkinningWeights, gltfOptions.normalizeSkinningWeights);
   raw.TransformGeometry(gltfOptions.computeNormals);
 
   std::ofstream outStream; // note: auto-flushes in destructor

@@ -102,7 +102,7 @@ struct GltfOptions {
   } draco;
 
   /** Whether to include FBX User Properties as 'extras' metadata in glTF nodes. */
-  bool enableUserProperties{false};
+  bool enableUserProperties{true};
 
   /** Whether to use KHR_materials_unlit to extend materials definitions. */
   bool useKHRMatUnlit{false};
@@ -112,16 +112,22 @@ struct GltfOptions {
   /** Whether to include lights through the KHR_punctual_lights extension. */
   bool useKHRLightsPunctual{true};
 
+  /** Whether to not use sparse accessors in blend shapes */
+  bool disableSparseBlendShapes{false};
   /** Whether to include blend shape normals, if present according to the SDK. */
   bool useBlendShapeNormals{false};
   /** Whether to include blend shape tangents, if present according to the SDK. */
   bool useBlendShapeTangents{false};
+  /** Whether to normalized skinning weights. */
+  bool normalizeSkinningWeights{true};
+  /** Maximum number of bone influences per vertex. */
+  int maxSkinningWeights{8};
   /** When to compute vertex normals from geometry. */
   ComputeNormalsOption computeNormals = ComputeNormalsOption::BROKEN;
   /** When to use 32-bit indices. */
   UseLongIndicesOptions useLongIndices = UseLongIndicesOptions::AUTO;
   /** Select baked animation framerate. */
-  AnimationFramerateOptions animationFramerate = AnimationFramerateOptions::BAKE24;
+  AnimationFramerateOptions animationFramerate = AnimationFramerateOptions::BAKE30;
 
   /** Temporary directory used by FBX SDK. */
   std::string fbxTempDir;
