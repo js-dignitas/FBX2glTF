@@ -188,24 +188,25 @@ std::shared_ptr<TextureData> TextureBuilder::simple(int rawTexIndex, const std::
     std::string tmpFolder;
     if(outputFolder.empty()) 
       tmpFolder = "./convertedTextures";
-    else
+    else {
       tmpFolder = outputFolder+"/convertedTextures";
+    }
 
     //Check for existence of ImageMagick convert binary in path
-    if(std::system("convert -version")!=0) { //GAM TODO - Pipe to /dev/null or NUL to avoid console spew (also should check the output to make sure its really ImageMagick)
-        fmt::printf("Warning: Failed to find installed version of ImageMagick 'convert'. TGA conversion requires ImageMagick (https://imagemagick.org/) installation in system path)\n");
+    if(std::system("magick -version")!=0) { //GAM TODO - Pipe to /dev/null or NUL to avoid console spew (also should check the output to make sure its really ImageMagick)
+        fmt::printf("Warning: Failed to find installed version of ImageMagick 'magick'. TGA conversion requires ImageMagick (https://imagemagick.org/) installation in system path)\n");
         //If we can't find convert set the file path to empty string, so next step will fail and set to error texture
         rawTexture.fileLocation = "";
         rawTexture.name = "";
     } else  {
       //Ensure output folder exists
-      std::string mkdirCmd = "mkdir -p "+tmpFolder;
-      std::system(mkdirCmd.c_str());
+      FileUtils::MakeDir(tmpFolder);
 
       std::string baseName= FileUtils::GetFileBase(relativeFilename);
       std::string tmpPath = tmpFolder+"/"+baseName+".png";
       
-      std::string cmdStr = "convert \""+rawTexture.fileLocation+"\" \""+tmpPath+"\"";//GAM TODO - Pipe to /dev/null or NUL to avoid console spew
+      std::string cmdStr = "magick \""+rawTexture.fileLocation+"\" -flip -resize \"1024>\" \""+tmpPath+"\"";//GAM TODO - Pipe to /dev/null or NUL to avoid console spew
+
       auto res = std::system(cmdStr.c_str());
       if(res==0) {
         rawTexture.fileLocation = tmpPath;
@@ -215,7 +216,7 @@ std::shared_ptr<TextureData> TextureBuilder::simple(int rawTexIndex, const std::
         }
       } else {
         //If we fail, set the file path to empty string, so next step will fail and set to error texture
-        fmt::printf("Warning: Failed to convert TGA:%s to %s\n", rawTexture.fileLocation, tmpPath);
+        fmt::printf("Warning: Failed to magick TGA:%s to %s\n", rawTexture.fileLocation, tmpPath);
         rawTexture.fileLocation = "";
         rawTexture.name = "";
       }
