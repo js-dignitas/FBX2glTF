@@ -12,4 +12,25 @@ This is a build used with values according to the company's internal model value
 
 ## Build Instructions
 
-Reference the Github workflow.
+Install conan in your python environment.
+
+Using Visual Studio 2017.
+
+Install FBX SDK.
+
+In FBX2glTF directory, create 'build' directory, and run these commands:
+
+```
+> conan remote update bincrafters https://bincrafters.jfrog.io/artifactory/api/conan/public-conan 
+
+> conan config set general.revisions_enabled=1 
+
+> conan.exe  install . -i build -s build_type=Release -e FBXSDK_SDKS="C:/Program Files/Autodesk/FBX/FBX SDK" -s compiler.version=15  --build=missing 
+
+> cd build
+
+> cmake -DCMAKE_BUILD_TYPE=Release ..
+
+> cmake --build  . --target ALL_BUILD --config Release
+
+```
