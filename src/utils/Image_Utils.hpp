@@ -12,7 +12,11 @@
 
 namespace ImageUtils {
 
-enum ImageOcclusion { IMAGE_OPAQUE, IMAGE_TRANSPARENT };
+enum ImageOcclusion { 
+  IMAGE_OPAQUE, 
+  IMAGE_TRANSPARENT,
+  IMAGE_TRANSPARENT_MASK,
+};
 
 struct ImageProperties {
   int width;

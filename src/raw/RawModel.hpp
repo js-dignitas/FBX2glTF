@@ -11,6 +11,7 @@
 #include <functional>
 #include <set>
 #include <unordered_map>
+#include <map>
 
 #include "FBX2glTF.h"
 
@@ -75,6 +76,7 @@ struct RawVertex {
   bool pad3 = false;
 
   bool operator==(const RawVertex& other) const;
+  //bool operator<(const RawVertex& other) const;
   size_t Difference(const RawVertex& other) const;
 };
 
@@ -165,7 +167,11 @@ inline std::string Describe(RawTextureUsage usage) {
   }
 };
 
-enum RawTextureOcclusion { RAW_TEXTURE_OCCLUSION_OPAQUE, RAW_TEXTURE_OCCLUSION_TRANSPARENT };
+enum RawTextureOcclusion { 
+  RAW_TEXTURE_OCCLUSION_OPAQUE, 
+  RAW_TEXTURE_OCCLUSION_TRANSPARENT,
+  RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK,
+};
 
 struct RawTexture {
   std::string name; // logical name in FBX file
@@ -173,6 +179,9 @@ struct RawTexture {
   int height;
   int mipLevels;
   RawTextureUsage usage;
+  Vec2f translation;
+  float rotation;
+  Vec2f scale;
   RawTextureOcclusion occlusion;
   std::string fileName; // original filename in FBX file
   std::string fileLocation; // inferred path in local filesystem, or ""
@@ -181,8 +190,10 @@ struct RawTexture {
 enum RawMaterialType {
   RAW_MATERIAL_TYPE_OPAQUE,
   RAW_MATERIAL_TYPE_TRANSPARENT,
+  RAW_MATERIAL_TYPE_TRANSPARENT_MASK,
   RAW_MATERIAL_TYPE_SKINNED_OPAQUE,
   RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT,
+  RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK,
 };
 
 struct RawMatProps {
@@ -195,6 +206,8 @@ struct RawMatProps {
   virtual bool operator==(const RawMatProps& other) const {
     return shadingModel == other.shadingModel;
   };
+
+  virtual bool hasTransparency() const = 0;
 };
 
 struct RawTraditionalMatProps : RawMatProps {
@@ -226,6 +239,10 @@ struct RawTraditionalMatProps : RawMatProps {
           shininess == typed.shininess;
     }
     return false;
+  }
+
+  bool hasTransparency() const override {
+    return diffuseFactor.w < 0.999999f;
   }
 };
 
@@ -261,6 +278,10 @@ struct RawMetRoughMatProps : RawMatProps {
     }
     return false;
   }
+
+  bool hasTransparency() const override {
+    return diffuseFactor.w < 0.999999f;
+  }
 };
 
 struct RawMaterial {
@@ -270,6 +291,7 @@ struct RawMaterial {
   std::shared_ptr<RawMatProps> info;
   int textures[RAW_TEXTURE_USAGE_MAX];
   std::vector<std::string> userProperties;
+  int index = -1;
 };
 
 enum RawLightType {
@@ -305,6 +327,7 @@ struct RawSurface {
   std::vector<Mat4f> inverseBindMatrices;
   std::vector<RawBlendChannel> blendChannels;
   bool discrete;
+  int index = -1;
 };
 
 struct RawChannel {
@@ -375,7 +398,10 @@ class RawModel {
       const std::string& name,
       const std::string& fileName,
       const std::string& fileLocation,
-      RawTextureUsage usage);
+      RawTextureUsage usage,
+      Vec2f translation,
+      float rotation,
+      Vec2f scale);
   int AddMaterial(const RawMaterial& material);
   int AddMaterial(
       const long id,
@@ -548,6 +574,8 @@ class RawModel {
   int vertexAttributes;
   int globalMaxWeights;
   std::unordered_map<RawVertex, int, VertexHasher> vertexHash;
+  std::unordered_map<long, size_t> materialIdToIndex;
+  std::unordered_map<long, size_t> surfaceIdToIndex;
   std::vector<RawVertex> vertices;
   std::vector<RawTriangle> triangles;
   std::vector<RawTexture> textures;

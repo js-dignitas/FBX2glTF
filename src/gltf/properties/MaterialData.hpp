@@ -14,10 +14,13 @@
 
 struct Tex {
   static std::unique_ptr<Tex> ref(const TextureData* tex, uint32_t texCoord = 0);
-  explicit Tex(uint32_t texRef, uint32_t texCoord);
+  explicit Tex(uint32_t texRef, uint32_t texCoord, Vec2f translation, float rotation, Vec2f scale);
 
   const uint32_t texRef;
   const uint32_t texCoord;
+  const Vec2f translation;
+  const float rotation;
+  const Vec2f scale;
 };
 
 struct KHRCmnUnlitMaterial {
@@ -42,7 +45,7 @@ struct PBRMetallicRoughness {
 struct MaterialData : Holdable {
   MaterialData(
       std::string name,
-      bool isTransparent,
+      RawMaterialType materialType,
       RawShadingModel shadingModel,
       const TextureData* normalTexture,
       const TextureData* occlusionTexture,
@@ -55,7 +58,7 @@ struct MaterialData : Holdable {
 
   const std::string name;
   const RawShadingModel shadingModel;
-  const bool isTransparent;
+  const RawMaterialType materialType;
   const std::unique_ptr<const Tex> normalTexture;
   const std::unique_ptr<const Tex> occlusionTexture;
   const std::unique_ptr<const Tex> emissiveTexture;

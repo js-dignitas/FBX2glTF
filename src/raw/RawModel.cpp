@@ -14,6 +14,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <tuple>
 
 #if defined(__unix__)
 #include <algorithm>
@@ -39,7 +40,31 @@ bool RawVertex::operator==(const RawVertex& other) const {
       (polarityUv0 == other.polarityUv0) &&
       (blendSurfaceIx == other.blendSurfaceIx) && (blends == other.blends);
 }
-
+/*
+bool RawVertex::operator<(const RawVertex &other) const {
+    return std::make_tuple(
+      position.x, position.y, position.z,
+      normal.x, normal.y, normal.z,
+      binormal.x, binormal.y, binormal.z,
+      uv0.x, uv0.y,
+      uv1.x, uv1.y,
+      color.x, color.y, color.z,
+      blendSurfaceIx,
+      polarityUv0
+      ) 
+      < 
+      std::make_tuple(
+        other.position.x, other.position.y, other.position.z,
+        other.normal.x, other.normal.y, other.normal.z,
+        other.binormal.x, other.binormal.y, other.binormal.z,
+        other.uv0.x, other.uv0.y,
+        other.uv1.x, other.uv1.y,
+        other.color.x, other.color.y, other.color.z,
+        other.blendSurfaceIx,
+        other.polarityUv0
+        );
+}
+*/
 size_t RawVertex::Difference(const RawVertex& other) const {
   size_t attributes = 0;
   if (position != other.position) {
@@ -77,6 +102,9 @@ void RawModel::AddVertexAttribute(const RawVertexAttribute attrib) {
 }
 
 int RawModel::AddVertex(const RawVertex& vertex) {
+  /*auto it = std::find_if(vertexHash.begin(), vertexHash.end(), [&](const std::pair<RawVertex, int>& v2) -> bool {
+    return vertex == v2.first;
+  });*/
   auto it = vertexHash.find(vertex);
   if (it != vertexHash.end()) {
     return it->second;
@@ -101,7 +129,10 @@ int RawModel::AddTexture(
     const std::string& name,
     const std::string& fileName,
     const std::string& fileLocation,
-    RawTextureUsage usage) {
+    RawTextureUsage usage,
+    Vec2f translation,
+    float rotation,
+    Vec2f scale) {
   if (name.empty()) {
     return -1;
   }
@@ -119,14 +150,26 @@ int RawModel::AddTexture(
 
   RawTexture texture;
   texture.name = name;
+  texture.translation = translation;
+  texture.rotation = rotation;
+  texture.scale = scale;
   texture.width = properties.width;
   texture.height = properties.height;
   texture.mipLevels =
       (int)ceilf(log2f(std::max((float)properties.width, (float)properties.height)));
   texture.usage = usage;
-  texture.occlusion = (properties.occlusion == ImageUtils::IMAGE_TRANSPARENT)
-      ? RAW_TEXTURE_OCCLUSION_TRANSPARENT
-      : RAW_TEXTURE_OCCLUSION_OPAQUE;
+  std::cout << __FILE__ << " AddTexture occlusion: " << properties.occlusion << "\n";
+  switch (properties.occlusion) {
+  case ImageUtils::IMAGE_OPAQUE:
+    texture.occlusion = RAW_TEXTURE_OCCLUSION_OPAQUE;
+    break;
+  case ImageUtils::IMAGE_TRANSPARENT:
+    texture.occlusion = RAW_TEXTURE_OCCLUSION_TRANSPARENT;
+    break;
+  case ImageUtils::IMAGE_TRANSPARENT_MASK:
+    texture.occlusion = RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK;
+    break;
+  }
   texture.fileName = fileName;
   texture.fileLocation = fileLocation;
   textures.emplace_back(texture);
@@ -150,6 +193,12 @@ int RawModel::AddMaterial(
     const int textures[RAW_TEXTURE_USAGE_MAX],
     std::shared_ptr<RawMatProps> materialInfo,
     const std::vector<std::string>& userProperties) {
+  auto it = materialIdToIndex.find(id);
+  if (it != materialIdToIndex.end()) {
+    return it->second;
+  }
+
+  //fmt::printf("Material count %d, id %d\n", materials.size(), id);
   for (size_t i = 0; i < materials.size(); i++) {
     if (materials[i].name != name) {
       continue;
@@ -172,6 +221,7 @@ int RawModel::AddMaterial(
       }
     }
     if (match) {
+      materialIdToIndex[id] = i;
       return (int)i;
     }
   }
@@ -182,6 +232,7 @@ int RawModel::AddMaterial(
   material.type = materialType;
   material.info = materialInfo;
   material.userProperties = userProperties;
+  material.index = (int)materials.size();
 
   for (int i = 0; i < RAW_TEXTURE_USAGE_MAX; i++) {
     material.textures[i] = textures[i];
@@ -189,7 +240,8 @@ int RawModel::AddMaterial(
 
   materials.emplace_back(material);
 
-  return (int)materials.size() - 1;
+  materialIdToIndex[id] = material.index;
+  return material.index;
 }
 
 int RawModel::AddLight(
@@ -227,16 +279,28 @@ int RawModel::AddLight(
 int RawModel::AddSurface(const RawSurface& surface) {
   for (size_t i = 0; i < surfaces.size(); i++) {
     if (StringUtils::CompareNoCase(surfaces[i].name, surface.name) == 0) {
+      surfaceIdToIndex[surface.id] = i;
       return (int)i;
     }
   }
 
-  surfaces.emplace_back(surface);
-  return (int)(surfaces.size() - 1);
+  RawSurface copy = surface;
+  copy.index = (int)surfaces.size();
+  surfaces.emplace_back(copy);
+  surfaceIdToIndex[surface.id] = copy.index;
+  return copy.index;
 }
 
 int RawModel::AddSurface(const char* name, const long surfaceId) {
-  assert(name[0] != '\0');
+  std::string n = name;
+  if (n.empty()) {
+    n = std::to_string(surfaceId);
+  }
+
+  auto it = surfaceIdToIndex.find(surfaceId);
+  if (it != surfaceIdToIndex.end()) {
+    return (int)it->second;
+  }
 
   for (size_t i = 0; i < surfaces.size(); i++) {
     if (surfaces[i].id == surfaceId) {
@@ -245,12 +309,14 @@ int RawModel::AddSurface(const char* name, const long surfaceId) {
   }
   RawSurface surface;
   surface.id = surfaceId;
-  surface.name = name;
+  surface.name = n;
   surface.bounds.Clear();
   surface.discrete = false;
+  surface.index = (int)surfaces.size();
 
   surfaces.emplace_back(surface);
-  return (int)(surfaces.size() - 1);
+  surfaceIdToIndex[surfaceId] = surface.index;
+  return surface.index;
 }
 
 int RawModel::AddAnimation(const RawAnimation& animation) {
@@ -339,6 +405,7 @@ void RawModel::Condense(const int maxSkinningWeights, const bool normalizeWeight
     std::vector<RawSurface> oldSurfaces = surfaces;
 
     surfaces.clear();
+    surfaceIdToIndex.clear();
 
     std::set<int> survivingSurfaceIds;
     for (auto& triangle : triangles) {
@@ -362,6 +429,7 @@ void RawModel::Condense(const int maxSkinningWeights, const bool normalizeWeight
     std::vector<RawMaterial> oldMaterials = materials;
 
     materials.clear();
+    materialIdToIndex.clear();
 
     for (auto& triangle : triangles) {
       const RawMaterial& material = oldMaterials[triangle.materialIndex];
@@ -382,7 +450,7 @@ void RawModel::Condense(const int maxSkinningWeights, const bool normalizeWeight
         if (material.textures[j] >= 0) {
           const RawTexture& texture = oldTextures[material.textures[j]];
           const int textureIndex =
-              AddTexture(texture.name, texture.fileName, texture.fileLocation, texture.usage);
+              AddTexture(texture.name, texture.fileName, texture.fileLocation, texture.usage, texture.translation, texture.rotation, texture.scale);
           textures[textureIndex] = texture;
           material.textures[j] = textureIndex;
         }

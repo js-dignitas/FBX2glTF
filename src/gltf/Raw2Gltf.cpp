@@ -222,8 +222,6 @@ ModelData* Raw2Gltf(
 
    for (int materialIndex = 0; materialIndex < raw.GetMaterialCount(); materialIndex++) {
       const RawMaterial& material = raw.GetMaterial(materialIndex);
-      const bool isTransparent = material.type == RAW_MATERIAL_TYPE_TRANSPARENT ||
-          material.type == RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT;
 
       Vec3f emissiveFactor;
       float emissiveIntensity;
@@ -389,7 +387,7 @@ ModelData* Raw2Gltf(
 
       std::shared_ptr<MaterialData> mData = gltf->materials.hold(new MaterialData(
           material.name,
-          isTransparent,
+          material.type,
           material.info->shadingModel,
           normalTexture,
           occlusionTexture,
@@ -411,6 +409,8 @@ ModelData* Raw2Gltf(
 
       const RawMaterial& rawMaterial =
           surfaceModel.GetMaterial(surfaceModel.GetTriangle(0).materialIndex);
+      fmt::printf(
+          "Seeking material of id %d, name %s...\n", rawMaterial.id, rawMaterial.name.c_str());
       const MaterialData& mData = require(materialsById, rawMaterial.id);
 
       if (verboseOutput)
@@ -930,6 +930,7 @@ ModelData* Raw2Gltf(
 
   {
     std::vector<std::string> extensionsUsed, extensionsRequired;
+    extensionsUsed.push_back(KHR_TEXTURE_TRANSFORM);
     if (options.useKHRMatUnlit) {
       extensionsUsed.push_back(KHR_MATERIALS_CMN_UNLIT);
     }

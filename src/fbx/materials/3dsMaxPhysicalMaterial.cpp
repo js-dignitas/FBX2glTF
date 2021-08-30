@@ -23,7 +23,7 @@ std::unique_ptr<FbxRoughMetMaterialInfo> Fbx3dsMaxPhysicalMaterialResolver::reso
     ::fmt::printf(
         "Warning: Material %s has surprising shading model: %s\n",
         fbxMaterial->GetName(),
-        shadingModel);
+        shadingModel.Buffer());
   }
 
   auto getTex = [&](std::string propName) -> const FbxFileTexture* {

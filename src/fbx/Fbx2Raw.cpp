@@ -71,6 +71,7 @@ static bool TriangleTexturePolarity(const Vec2f& uv0, const Vec2f& uv1, const Ve
 
 static RawMaterialType GetMaterialType(
     const RawModel& raw,
+    const RawMatProps& props,
     const int textures[RAW_TEXTURE_USAGE_MAX],
     const bool vertexTransparency,
     const bool skinned) {
@@ -82,13 +83,18 @@ static RawMaterialType GetMaterialType(
   }
   // determine material type based on texture occlusion.
   if (diffuseTexture >= 0) {
-    return (raw.GetTexture(diffuseTexture).occlusion == RAW_TEXTURE_OCCLUSION_OPAQUE)
-        ? (skinned ? RAW_MATERIAL_TYPE_SKINNED_OPAQUE : RAW_MATERIAL_TYPE_OPAQUE)
-        : (skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT);
+    switch (raw.GetTexture(diffuseTexture).occlusion) {
+    case RAW_TEXTURE_OCCLUSION_OPAQUE:
+      return skinned ? RAW_MATERIAL_TYPE_SKINNED_OPAQUE : RAW_MATERIAL_TYPE_OPAQUE;
+    case RAW_TEXTURE_OCCLUSION_TRANSPARENT:
+      return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
+    case RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK:
+      return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK : RAW_MATERIAL_TYPE_TRANSPARENT_MASK; 
+    }
   }
 
-  // else if there is any vertex transparency, treat whole mesh as transparent
-  if (vertexTransparency) {
+  // else if there is any vertex transparency or base prop transparency, treat whole mesh as transparent
+  if (vertexTransparency || props.hasTransparency()) {
     return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
   }
 
@@ -261,13 +267,15 @@ static void ReadMesh(
     if (fbxMaterial == nullptr) {
       materialName = "DefaultMaterial";
       materialId = -1;
-      rawMatProps.reset(new RawTraditionalMatProps(
-          RAW_SHADING_MODEL_LAMBERT,
+      // Default to defaults from https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#reference-material
+      rawMatProps.reset(new RawMetRoughMatProps(
+          RAW_SHADING_MODEL_PBR_MET_ROUGH,
+          Vec4f(1, 1, 1, 1),
           Vec3f(0, 0, 0),
-          Vec4f(.5, .5, .5, 1),
-          Vec3f(0, 0, 0),
-          Vec3f(0, 0, 0),
-          0.5));
+          0.0f,
+          1.0f,
+          1.0f,
+          false));
 
     } else {
       materialName = fbxMaterial->name;
@@ -277,8 +285,13 @@ static void ReadMesh(
         if (tex != nullptr) {
           // dig out the inferred filename from the textureLocations map
           FbxString inferredPath = textureLocations.find(tex)->second;
+
+          Vec2f translation(tex->GetTranslationU(), tex->GetTranslationV());
+          float rotation = tex->GetRotationW(); // FIXME is this right?
+          Vec2f scale(tex->GetScaleU(), tex->GetScaleV());
+
           textures[usage] =
-              raw.AddTexture(tex->GetName(), tex->GetFileName(), inferredPath.Buffer(), usage);
+              raw.AddTexture(tex->GetName(), tex->GetFileName(), inferredPath.Buffer(), usage, translation, rotation, scale);
         }
       };
 
@@ -467,7 +480,7 @@ static void ReadMesh(
     }
 
     const RawMaterialType materialType =
-        GetMaterialType(raw, textures, vertexTransparency, skinning.IsSkinned());
+        GetMaterialType(raw, *rawMatProps, textures, vertexTransparency, skinning.IsSkinned());
     const int rawMaterialIndex = raw.AddMaterial(
         materialId, materialName, materialType, textures, rawMatProps, userProperties);
 
@@ -633,10 +646,12 @@ static void ReadNodeAttributes(
         ReadMesh(raw, pScene, pNode, textureLocations);
         break;
       }
+      /*
       case FbxNodeAttribute::eCamera: {
         ReadCamera(raw, pScene, pNode);
         break;
       }
+      */
       case FbxNodeAttribute::eLight:
         ReadLight(raw, pScene, pNode);
         break;
@@ -654,6 +669,7 @@ static void ReadNodeAttributes(
       case FbxNodeAttribute::eLODGroup:
       case FbxNodeAttribute::eSubDiv:
       case FbxNodeAttribute::eCachedEffect:
+      case FbxNodeAttribute::eCamera:
       case FbxNodeAttribute::eLine: {
         break;
       }
@@ -671,6 +687,9 @@ static void ReadNodeAttributes(
  */
 static FbxVector4 computeLocalScale(FbxNode* pNode, FbxTime pTime = FBXSDK_TIME_INFINITE) {
   const FbxVector4 lScale = pNode->EvaluateLocalTransform(pTime).GetS();
+  if (isnan(lScale[0]) || isnan(lScale[1]) || isnan(lScale[2])) {
+    return FbxVector4(0, 0, 0, 1);
+  }
 
   if (pNode->GetParent() == nullptr ||
       pNode->GetTransform().GetInheritType() != FbxTransform::eInheritRrs) {
@@ -750,6 +769,36 @@ static void ReadNodeHierarchy(
   }
 }
 
+// This anim evaluator caches results, speeding up animation conversion enormously in cases where there's a large
+// hierarchy in the FBX scene. Without this, EvaluateLocalTransform() ends up recalculating every node up the hierarchy
+// on every call, even if we've previously calculated that transform. Trades memory for speed, but can literally take
+// a conversion that takes 35 minutes and make it take 8.
+class CachingAnimEvaluator : public FbxAnimEvalClassic {
+  FBXSDK_OBJECT_DECLARE(CachingAnimEvaluator, FbxAnimEvalClassic);
+
+  typedef std::tuple<FbxNode*, FbxTime, FbxNode::EPivotSet, bool> KeyType;
+
+protected:
+  void EvaluateNodeTransform(FbxNodeEvalState* pResult, FbxNode* pNode, const FbxTime& pTime, FbxNode::EPivotSet pPivotSet, bool pApplyTarget) override {
+    auto cacheKey = std::make_tuple(pNode, pTime, pPivotSet, pApplyTarget);
+    auto it = cache_.find(cacheKey);
+    if (it != cache_.end()) {
+      *pResult = *it->second;
+      return;
+    }
+
+    FbxAnimEvalClassic::EvaluateNodeTransform(pResult, pNode, pTime, pPivotSet, pApplyTarget);
+    std::unique_ptr<FbxNodeEvalState> cacheState(new FbxNodeEvalState(pNode));
+    *cacheState = *pResult;
+    cache_[cacheKey] = std::move(cacheState);
+  }
+
+private:
+  std::map<KeyType, std::unique_ptr<FbxNodeEvalState>> cache_;
+};
+
+FBXSDK_OBJECT_IMPLEMENT(CachingAnimEvaluator);
+
 static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& options) {
   FbxTime::EMode eMode = FbxTime::eFrames24;
   switch (options.animationFramerate) {
@@ -771,6 +820,11 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
 
     pScene->SetCurrentAnimationStack(pAnimStack);
 
+    // from jfaust/torch/master.  Not sure if it should go here because there
+    // was a conflict in the merge
+    //
+    CachingAnimEvaluator* evaluator = CachingAnimEvaluator::Create(pScene, "CachingAnimEvaluator");
+    pScene->SetAnimationEvaluator(evaluator);
     /**
      * Individual animations are often concatenated on the timeline, and the
      * only certain way to identify precisely what interval they occupy is to
@@ -820,7 +874,7 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
         "Animation %s: [%lu - %lu]\n", std::string(animStackName), firstFrameIndex, lastFrameIndex);
 
     if (verboseOutput) {
-      fmt::printf("animation %zu: %s (%d%%)", animIx, (const char*)animStackName, 0);
+      fmt::printf("animation %zu: %s (%d%%)\n", animIx, (const char*)animStackName, 0);
     }
 
     for (FbxLongLong frameIndex = firstFrameIndex; frameIndex <= lastFrameIndex; frameIndex++) {
@@ -836,9 +890,22 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
     for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
       FbxNode* pNode = pScene->GetNode(nodeIndex);
       const FbxAMatrix baseTransform = pNode->EvaluateLocalTransform();
-      const FbxVector4 baseTranslation = baseTransform.GetT();
-      const FbxQuaternion baseRotation = baseTransform.GetQ();
+      FbxVector4 baseTranslation = baseTransform.GetT();
+      FbxQuaternion baseRotation = baseTransform.GetQ();
       const FbxVector4 baseScaling = computeLocalScale(pNode);
+
+      if (isnan(baseTranslation[0]) || isnan(baseTranslation[1]) || isnan(baseTranslation[2]) || isnan(baseTranslation[3])) {
+        baseTranslation = FbxVector4(0, 0, 0, 1);
+      }
+
+      if (isnan(baseRotation[0]) || isnan(baseRotation[1]) || isnan(baseRotation[2]) || isnan(baseRotation[3])) {
+        baseRotation = FbxQuaternion(0, 0, 0, 1);
+      }
+
+      fmt::printf("Node %s\n", pNode->GetName());
+      fmt::printf("baseTranslation: %f, %f, %f\n", baseTranslation[0], baseTranslation[1], baseTranslation[2]);
+      fmt::printf("baseRotation: %f, %f, %f, %f\n", baseRotation[0], baseRotation[1], baseRotation[2], baseRotation[3]);
+      fmt::printf("baseScaling: %f, %f, %f\n", baseScaling[0], baseScaling[1], baseScaling[2]);
 
       RawChannel channel;
       channel.nodeIndex = raw.GetNodeById(pNode->GetUniqueID());
@@ -934,12 +1001,14 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
 
       if (verboseOutput) {
         fmt::printf(
-            "\ranimation %d: %s (%d%%)",
+            "\ranimation %d: %s (%d%%)\n",
             animIx,
             (const char*)animStackName,
             nodeIndex * 100 / nodeCount);
       }
     }
+
+    evaluator->Destroy();
 
     raw.AddAnimation(animation);
 
@@ -1093,6 +1162,7 @@ bool LoadFBXFile(
 
   FbxIOSettings* pIoSettings = FbxIOSettings::Create(pManager, IOSROOT);
   pManager->SetIOSettings(pIoSettings);
+  pManager->RegisterFbxClass("CachingAnimEvaluator", FBX_TYPE(CachingAnimEvaluator), FBX_TYPE(FbxAnimEvalClassic));
 
   FbxImporter* pImporter = FbxImporter::Create(pManager, "");
 

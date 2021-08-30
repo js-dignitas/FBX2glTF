@@ -11,13 +11,25 @@
 
 // TODO: retrieve & pass in correct UV set from FBX
 std::unique_ptr<Tex> Tex::ref(const TextureData* tex, uint32_t texCoord) {
-  return std::unique_ptr<Tex>{(tex != nullptr) ? new Tex(tex->ix, texCoord) : nullptr};
+  return std::unique_ptr<Tex>{(tex != nullptr) ? new Tex(tex->ix, texCoord, tex->translation, tex->rotation, tex->scale) : nullptr};
 }
 
-Tex::Tex(uint32_t texRef, uint32_t texCoord) : texRef(texRef), texCoord(texCoord) {}
+Tex::Tex(uint32_t texRef, uint32_t texCoord, Vec2f translation, float rotation, Vec2f scale) 
+: texRef(texRef), texCoord(texCoord), translation(translation), rotation(rotation), scale(scale) {}
 
 void to_json(json& j, const Tex& data) {
   j = json{{"index", data.texRef}, {"texCoord", data.texCoord}};
+
+  if (data.translation != Vec2f(0.0f, 0.0f) || data.rotation != 0.0f || data.scale != Vec2f(1.0f, 1.0f)) {
+    json extensions = {};
+    extensions[KHR_TEXTURE_TRANSFORM] = {
+      {"offset", toStdVec(data.translation)},
+      {"rotation", data.rotation},
+      {"scale", toStdVec(data.scale)},
+    };
+
+    j["extensions"] = extensions;
+  }
 }
 
 KHRCmnUnlitMaterial::KHRCmnUnlitMaterial() {}
@@ -76,7 +88,7 @@ void to_json(json& j, const PBRMetallicRoughness& d) {
 
 MaterialData::MaterialData(
     std::string name,
-    bool isTransparent,
+    RawMaterialType materialType,
     const RawShadingModel shadingModel,
     const TextureData* normalTexture,
     const TextureData* occlusionTexture,
@@ -87,7 +99,7 @@ MaterialData::MaterialData(
     : Holdable(),
       name(std::move(name)),
       shadingModel(shadingModel),
-      isTransparent(isTransparent),
+      materialType(materialType),
       normalTexture(Tex::ref(normalTexture)),
       occlusionTexture(Tex::ref(occlusionTexture)),
       emissiveTexture(Tex::ref(emissiveTexture)),
@@ -101,6 +113,22 @@ json MaterialData::serialize() const {
                   {{"fromFBX",
                     {{"shadingModel", Describe(shadingModel)},
                      {"isTruePBR", shadingModel == RAW_SHADING_MODEL_PBR_MET_ROUGH}}}}}};
+
+  switch (materialType) {
+  case RAW_MATERIAL_TYPE_OPAQUE: // fallthrough
+  case RAW_MATERIAL_TYPE_SKINNED_OPAQUE:
+    result["alphaMode"] = "OPAQUE";
+    break;
+  case RAW_MATERIAL_TYPE_TRANSPARENT: // fallthrough
+  case RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT:
+    result["alphaMode"] = "BLEND";
+    break;
+  
+  case RAW_MATERIAL_TYPE_TRANSPARENT_MASK: // fallthrough
+  case RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK:
+    result["alphaMode"] = "MASK";
+    break;
+  }
 
   if (normalTexture != nullptr) {
     result["normalTexture"] = *normalTexture;

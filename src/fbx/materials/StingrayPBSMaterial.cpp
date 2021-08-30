@@ -17,7 +17,7 @@ std::unique_ptr<FbxRoughMetMaterialInfo> FbxStingrayPBSMaterialResolver::resolve
     ::fmt::printf(
         "Warning: Material %s has surprising shading model: %s\n",
         fbxMaterial->GetName(),
-        fbxMaterial->ShadingModel.Get());
+        fbxMaterial->ShadingModel.Get().Buffer());
   }
 
   auto getTex = [&](std::string propName) {

@@ -63,6 +63,8 @@ std::vector<FbxBlendShapesAccess::BlendChannel> FbxBlendShapesAccess::extractCha
           FbxShape* fbxShape = fbxChannel->GetTargetShape(targetIx);
           targetShapes.emplace_back(fbxShape, fullWeights[targetIx]);
         }
+
+        fmt::printf("channel DeformPercent %f", fbxChannel->DeformPercent);
         channels.emplace_back(
             mesh, shapeIx, channelIx, fbxChannel->DeformPercent * 0.01, targetShapes, name);
       }
