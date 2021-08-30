@@ -150,7 +150,10 @@ json MaterialData::serialize() const {
     extensions[KHR_MATERIALS_CMN_UNLIT] = *khrCmnConstantMaterial;
     result["extensions"] = extensions;
   }
-  result["alphaMode"] = isBlend ? "BLEND" : "OPAQUE";
+
+  // alphaMode was just set above
+  if (result["alphaMode"] == "")
+      result["alphaMode"] = isBlend ? "BLEND" : "OPAQUE";
 
   for (const auto& i : userProperties) {
     auto& prop_map = result["extras"]["fromFBX"]["userProperties"];
