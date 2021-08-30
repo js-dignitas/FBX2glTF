@@ -567,6 +567,8 @@ class RawModel {
       const int keepAttribs,
       const bool forceDiscrete) const;
 
+  bool forceMask = false;
+
  private:
   Vec3f getFaceNormal(int verts[3]) const;
 

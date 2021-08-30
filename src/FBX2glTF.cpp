@@ -203,9 +203,12 @@ int main(int argc, char* argv[]) {
       ->type_size(-1)
       ->type_name("(position|normal|tangent|binormial|color|uv0|uv1|auto)");
 
+  app.add_flag("--force-mask", gltfOptions.forceMask, "Use MASK alphaMode instead of BLEND");
+
   app.add_flag(
          "-d,--draco", gltfOptions.draco.enabled, "Apply Draco mesh compression to geometries.")
       ->group("Draco");
+
 
   app.add_option(
          "--draco-compression-level",
@@ -342,6 +345,8 @@ int main(int argc, char* argv[]) {
 
   ModelData* data_render_model = nullptr;
   RawModel raw;
+
+  raw.forceMask = gltfOptions.forceMask;
 
   if (verboseOutput) {
     fmt::printf("Loading FBX File: %s\n", inputPath);

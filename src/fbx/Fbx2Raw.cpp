@@ -86,8 +86,11 @@ static RawMaterialType GetMaterialType(
     switch (raw.GetTexture(diffuseTexture).occlusion) {
     case RAW_TEXTURE_OCCLUSION_OPAQUE:
       return skinned ? RAW_MATERIAL_TYPE_SKINNED_OPAQUE : RAW_MATERIAL_TYPE_OPAQUE;
-    case RAW_TEXTURE_OCCLUSION_TRANSPARENT:
-      return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
+    case RAW_TEXTURE_OCCLUSION_TRANSPARENT: // might fallthrough
+        if (!raw.forceMask) {
+            return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
+        }
+        // fallthrough
     case RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK:
       return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK : RAW_MATERIAL_TYPE_TRANSPARENT_MASK; 
     }

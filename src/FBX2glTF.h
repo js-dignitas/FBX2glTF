@@ -132,4 +132,6 @@ struct GltfOptions {
 
   /** Temporary directory used by FBX SDK. */
   std::string fbxTempDir;
+
+  bool forceMask{false};
 };
