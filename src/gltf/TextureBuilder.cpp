@@ -18,6 +18,10 @@
 #include <gltf/properties/ImageData.hpp>
 #include <gltf/properties/TextureData.hpp>
 
+#ifdef CopyFile
+#undef CopyFile
+#endif
+
 // keep track of some texture data as we load them
 struct TexInfo {
   explicit TexInfo(int rawTexIx) : rawTexIx(rawTexIx) {}
@@ -150,7 +154,7 @@ std::shared_ptr<TextureData> TextureBuilder::combine(
   }
 
   ImageData* image;
-  if (options.outputBinary) {
+  if (options.outputBinary && !options.separateTextures) {
     const auto bufferView =
         gltf.AddRawBufferView(*gltf.defaultBuffer, imgBuffer.data(), to_uint32(imgBuffer.size()));
     image = new ImageData(mergedName, *bufferView, png ? "image/png" : "image/jpeg");
@@ -194,6 +198,11 @@ std::shared_ptr<TextureData> TextureBuilder::simple(int rawTexIndex, const std::
   std::string textureName = FileUtils::GetFileBase(rawTexture.name);
   std::string relativeFilename = FileUtils::GetFileName(rawTexture.fileLocation);
   auto suffix = FileUtils::GetFileSuffix(rawTexture.fileLocation);
+  bool embeddedTextures = options.outputBinary && !options.separateTextures;
+  std::string baseName = FileUtils::GetFileBase(relativeFilename);
+
+  std::string outputPath;
+  std::string dstAbs;
 
   //TGAs are not supported by GLTF spec, convert to PNG
   if(suffix.has_value() && suffix->compare("tga")==0) {
@@ -204,34 +213,55 @@ std::shared_ptr<TextureData> TextureBuilder::simple(int rawTexIndex, const std::
       tmpFolder = outputFolder+"/convertedTextures";
     }
 
-    //Check for existence of ImageMagick convert binary in path
-    if(std::system("magick -version")!=0) { //GAM TODO - Pipe to /dev/null or NUL to avoid console spew (also should check the output to make sure its really ImageMagick)
-        fmt::printf("Warning: Failed to find installed version of ImageMagick 'magick'. TGA conversion requires ImageMagick (https://imagemagick.org/) installation in system path)\n");
-        //If we can't find convert set the file path to empty string, so next step will fail and set to error texture
+    bool precise = rawTexture.usage == RAW_TEXTURE_USAGE_NORMAL || rawTexture.usage == RAW_TEXTURE_USAGE_SHININESS;
+    bool transparent = rawTexture.occlusion != RAW_TEXTURE_OCCLUSION_OPAQUE;
+    std::string ext = transparent || precise ? ".png" : ".jpg";
+    std::string tmpPath = tmpFolder + "/" + baseName + ext;
+    relativeFilename = FileUtils::GetFileName(tmpPath);
+    outputPath = outputFolder + "/" + relativeFilename;
+    dstAbs = FileUtils::GetAbsolutePath(outputPath);
+
+    if (embeddedTextures || !FileUtils::FileExists(dstAbs)) {
+      // Check for existence of ImageMagick convert binary in path
+      if (std::system("magick -version") !=
+          0) { // GAM TODO - Pipe to /dev/null or NUL to avoid console spew (also should check the
+               // output to make sure its really ImageMagick)
+        fmt::printf(
+            "Warning: Failed to find installed version of ImageMagick 'magick'. TGA conversion requires ImageMagick (https://imagemagick.org/) installation in system path)\n");
+        // If we can't find convert set the file path to empty string, so next step will fail and
+        // set to error texture
         rawTexture.fileLocation = "";
         rawTexture.name = "";
-    } else  {
-      //Ensure output folder exists
-      FileUtils::MakeDir(tmpFolder);
-
-      std::string baseName= FileUtils::GetFileBase(relativeFilename);
-      std::string tmpPath = tmpFolder+"/"+baseName+".png";
-      
-      std::string cmdStr = "magick \""+rawTexture.fileLocation+"\" -flip -resize \"1024>\" \""+tmpPath+"\"";//GAM TODO - Pipe to /dev/null or NUL to avoid console spew
-
-      auto res = std::system(cmdStr.c_str());
-      if(res==0) {
-        rawTexture.fileLocation = tmpPath;
-        rawTexture.name = baseName+".png";
-        if (verboseOutput) {
-          fmt::printf("Converted TGA texture '%s' to output folder: %s\n", rawTexture.fileLocation, tmpPath);
-        }
       } else {
-        //If we fail, set the file path to empty string, so next step will fail and set to error texture
-        fmt::printf("Warning: Failed to magick TGA:%s to %s\n", rawTexture.fileLocation, tmpPath);
-        rawTexture.fileLocation = "";
-        rawTexture.name = "";
+        // Ensure output folder exists
+        FileUtils::MakeDir(tmpFolder);
+
+        std::string cmdStr = "magick \"" + rawTexture.fileLocation +
+            "\" -flip -resize \"1024>\" \"" + tmpPath +
+            "\""; // GAM TODO - Pipe to /dev/null or NUL to avoid console spew
+
+        auto res = std::system(cmdStr.c_str());
+        if (res == 0) {
+          rawTexture.fileLocation = tmpPath;
+          rawTexture.name = baseName + ext;
+          if (verboseOutput) {
+            fmt::printf(
+                "Converted TGA texture '%s' to output folder: %s\n",
+                rawTexture.fileLocation,
+                tmpPath);
+          }
+        } else {
+          // If we fail, set the file path to empty string, so next step will fail and set to error
+          // texture
+          fmt::printf("Warning: Failed to magick TGA:%s to %s\n", rawTexture.fileLocation, tmpPath);
+          rawTexture.fileLocation = "";
+          rawTexture.name = "";
+        }
       }
+    } else if (!embeddedTextures) {
+        // Use the target texture png/jpg path
+      rawTexture.fileLocation = tmpPath;
+      rawTexture.name = baseName + ext;
     }
 
     //Update the texture details
@@ -242,7 +272,7 @@ std::shared_ptr<TextureData> TextureBuilder::simple(int rawTexIndex, const std::
 
   ImageData* image = nullptr;
 
-  if (options.outputBinary) {
+  if (embeddedTextures) {
     auto bufferView = gltf.AddBufferViewForFile(*gltf.defaultBuffer, rawTexture.fileLocation);
     if (bufferView) {
       std::string mimeType;
@@ -260,18 +290,17 @@ std::shared_ptr<TextureData> TextureBuilder::simple(int rawTexIndex, const std::
 
   } else if (!relativeFilename.empty()) {
     image = new ImageData(relativeFilename, relativeFilename);
-    std::string outputPath = outputFolder + "/" + relativeFilename;
     auto srcAbs = FileUtils::GetAbsolutePath(rawTexture.fileLocation);
-    auto dstAbs = FileUtils::GetAbsolutePath(outputPath);
-    if (srcAbs != dstAbs)
-    if (FileUtils::CopyFile(rawTexture.fileLocation, outputPath, true)) {
-      if (verboseOutput) {
-        fmt::printf("Copied texture '%s' to output folder: %s\n", textureName, outputPath);
-      }
-    } else {
-      // no point commenting further on read/write error; CopyFile() does enough of that, and we
-      // certainly want to to add an image struct to the glTF JSON, with the correct relative path
-      // reference, even if the copy failed.
+    if (!FileUtils::FileExists(outputPath) && srcAbs != dstAbs) {
+        if (FileUtils::CopyFile(rawTexture.fileLocation, outputPath, true)) {
+          if (verboseOutput) {
+            fmt::printf("Copied texture '%s' to output folder: %s\n", textureName, outputPath);
+          }
+        } else {
+          // no point commenting further on read/write error; CopyFile() does enough of that, and we
+          // certainly want to to add an image struct to the glTF JSON, with the correct relative
+          // path reference, even if the copy failed.
+        }
     }
   }
   

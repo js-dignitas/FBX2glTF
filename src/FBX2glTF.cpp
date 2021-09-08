@@ -51,6 +51,12 @@ int main(int argc, char* argv[]) {
       "-e,--embed",
       gltfOptions.embedResources,
       "Inline buffers as data:// URIs within generated non-binary glTF.");
+
+  app.add_flag(
+      "-t,--separate-textures",
+      gltfOptions.separateTextures,
+      "Write texture files out separately");
+
   app.add_flag("-b,--binary", gltfOptions.outputBinary, "Output a single binary format .glb file.");
 
   app.add_option(
@@ -324,6 +330,7 @@ int main(int argc, char* argv[]) {
 
   if (gltfOptions.outputBinary) {
     // add .glb to output path, unless it already ends in exactly that
+    outputFolder = FileUtils::getFolder(outputPath) + "/";
     if (suffix.has_value() && suffix.value() == "glb") {
       modelPath = outputPath;
     } else {
