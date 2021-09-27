@@ -220,7 +220,7 @@ ModelData* Raw2Gltf(
     // materials
     //
 
-   for (int materialIndex = 0; materialIndex < raw.GetMaterialCount(); materialIndex++) {
+    for (int materialIndex = 0; materialIndex < raw.GetMaterialCount(); materialIndex++) {
       const RawMaterial& material = raw.GetMaterial(materialIndex);
 
       Vec3f emissiveFactor;
@@ -236,6 +236,7 @@ ModelData* Raw2Gltf(
       TextureData* normalTexture = simpleTex(RAW_TEXTURE_USAGE_NORMAL).get();
       TextureData* emissiveTexture = simpleTex(RAW_TEXTURE_USAGE_EMISSIVE).get();
       TextureData* occlusionTexture = nullptr;
+      TextureData* modulationTexture = simpleTex(RAW_TEXTURE_USAGE_MODULATION).get();
 
       std::shared_ptr<PBRMetallicRoughness> pbrMetRough;
       if (options.usePBRMetRough) {
@@ -254,42 +255,52 @@ ModelData* Raw2Gltf(
           RawMetRoughMatProps* props = (RawMetRoughMatProps*)material.info.get();
 
           // determine if we need to generate a combined map
-          bool hasMetallicMap = material.textures[RAW_TEXTURE_USAGE_METALLIC] >= 0;
-          bool hasRoughnessMap = material.textures[RAW_TEXTURE_USAGE_ROUGHNESS] >= 0;
-          bool hasOcclusionMap = material.textures[RAW_TEXTURE_USAGE_OCCLUSION] >= 0;
-          bool atLeastTwoMaps = hasMetallicMap ? (hasRoughnessMap || hasOcclusionMap)
-                                               : (hasRoughnessMap && hasMetallicMap);
-          if (!atLeastTwoMaps) {
-            // this handles the case of 0 or 1 maps supplied
-            aoMetRoughTex = hasMetallicMap
-                ? simpleTex(RAW_TEXTURE_USAGE_METALLIC)
-                : (hasRoughnessMap
-                       ? simpleTex(RAW_TEXTURE_USAGE_ROUGHNESS)
-                       : (hasOcclusionMap ? simpleTex(RAW_TEXTURE_USAGE_OCCLUSION) : nullptr));
+          bool hasAoMetRoughMap = material.textures[RAW_TEXTURE_USAGE_AO_MET_ROUGH] >= 0;
+
+          if (hasAoMetRoughMap) {
+            // JDS: Use the aoMatRough texture we found
+            aoMetRoughTex = simpleTex(RAW_TEXTURE_USAGE_AO_MET_ROUGH);
           } else {
-            // otherwise merge occlusion into the red channel, metallic into blue channel, and
-            // roughness into the green, of a new combinatory texture
-            aoMetRoughTex = textureBuilder.combine(
-                {
-                    material.textures[RAW_TEXTURE_USAGE_OCCLUSION],
-                    material.textures[RAW_TEXTURE_USAGE_METALLIC],
-                    material.textures[RAW_TEXTURE_USAGE_ROUGHNESS],
-                },
-                "ao_met_rough",
-                [&](const std::vector<const TextureBuilder::pixel*> pixels)
-                    -> TextureBuilder::pixel {
-                  const float occlusion = (*pixels[0])[0];
-                  const float metallic = (*pixels[1])[0] * (hasMetallicMap ? 1 : props->metallic);
-                  const float roughness =
-                      (*pixels[2])[0] * (hasRoughnessMap ? 1 : props->roughness);
-                  return {{occlusion,
-                           props->invertRoughnessMap ? 1.0f - roughness : roughness,
-                           metallic,
-                           1}};
-                },
-                false);
+            bool hasMetallicMap = material.textures[RAW_TEXTURE_USAGE_METALLIC] >= 0;
+            bool hasRoughnessMap = material.textures[RAW_TEXTURE_USAGE_ROUGHNESS] >= 0;
+            bool hasOcclusionMap = material.textures[RAW_TEXTURE_USAGE_OCCLUSION] >= 0;
+            bool atLeastTwoMaps = hasMetallicMap ? (hasRoughnessMap || hasOcclusionMap)
+                                                 : (hasRoughnessMap && hasMetallicMap);
+            if (!atLeastTwoMaps) {
+              // this handles the case of 0 or 1 maps supplied
+              aoMetRoughTex = hasMetallicMap
+                  ? simpleTex(RAW_TEXTURE_USAGE_METALLIC)
+                  : (hasRoughnessMap
+                         ? simpleTex(RAW_TEXTURE_USAGE_ROUGHNESS)
+                         : (hasOcclusionMap ? simpleTex(RAW_TEXTURE_USAGE_OCCLUSION) : nullptr));
+            } else {
+              // otherwise merge occlusion into the red channel, metallic into blue channel, and
+              // roughness into the green, of a new combinatory texture
+              aoMetRoughTex = textureBuilder.combine(
+                  {
+                      material.textures[RAW_TEXTURE_USAGE_OCCLUSION],
+                      material.textures[RAW_TEXTURE_USAGE_METALLIC],
+                      material.textures[RAW_TEXTURE_USAGE_ROUGHNESS],
+                  },
+                  "ao_met_rough",
+                  [&](const std::vector<const TextureBuilder::pixel*> pixels)
+                      -> TextureBuilder::pixel {
+                    const float occlusion = (*pixels[0])[0];
+                    const float metallic = (*pixels[1])[0] * (hasMetallicMap ? 1 : props->metallic);
+                    const float roughness =
+                        (*pixels[2])[0] * (hasRoughnessMap ? 1 : props->roughness);
+                    return {{occlusion,
+                             props->invertRoughnessMap ? 1.0f - roughness : roughness,
+                             metallic,
+                             1}};
+                  },
+                  false);
+            }
           }
           baseColorTex = simpleTex(RAW_TEXTURE_USAGE_ALBEDO);
+          if (!baseColorTex) {
+              baseColorTex = simpleTex(RAW_TEXTURE_USAGE_DIFFUSE);
+          }
           diffuseFactor = props->diffuseFactor;
           metallic = props->metallic;
           roughness = props->roughness;
@@ -306,39 +317,49 @@ ModelData* Raw2Gltf(
           const RawTraditionalMatProps* props = ((RawTraditionalMatProps*)material.info.get());
           diffuseFactor = props->diffuseFactor;
 
+          bool hasAoMetRoughMap = material.textures[RAW_TEXTURE_USAGE_AO_MET_ROUGH] >= 0;
+
+          if (hasAoMetRoughMap) {
+            // JDS: Use the aoMatRough texture we found
+            aoMetRoughTex = simpleTex(RAW_TEXTURE_USAGE_AO_MET_ROUGH);
+          }
+
           if (material.info->shadingModel == RAW_SHADING_MODEL_BLINN ||
-              material.info->shadingModel == RAW_SHADING_MODEL_PHONG) {
+              material.info->shadingModel == RAW_SHADING_MODEL_PHONG ||
+              !aoMetRoughTex) {
             // blinn/phong hardcoded to 0.4 metallic
             metallic = 0.0f;
 
-            // fairly arbitrary conversion equation, with properties:
-            //   shininess 0 -> roughness 1
-            //   shininess 2 -> roughness ~0.7
-            //   shininess 6 -> roughness 0.5
-            //   shininess 16 -> roughness ~0.33
-            //   as shininess ==> oo, roughness ==> 0
-            auto getRoughness = [&](float shininess) { return sqrtf(2.0f / (2.0f + shininess)); };
+            if (!aoMetRoughTex) {
+              // fairly arbitrary conversion equation, with properties:
+              //   shininess 0 -> roughness 1
+              //   shininess 2 -> roughness ~0.7
+              //   shininess 6 -> roughness 0.5
+              //   shininess 16 -> roughness ~0.33
+              //   as shininess ==> oo, roughness ==> 0
+              auto getRoughness = [&](float shininess) { return sqrtf(2.0f / (2.0f + shininess)); };
 
-            aoMetRoughTex = textureBuilder.combine(
-                {
-                    material.textures[RAW_TEXTURE_USAGE_SHININESS],
-                },
-                "ao_met_rough",
-                [&](const std::vector<const TextureBuilder::pixel*> pixels)
-                    -> TextureBuilder::pixel {
-                  // do not multiply with props->shininess; that doesn't work like the other
-                  // factors.
-                  float shininess = props->shininess * (*pixels[0])[0];
-                  return {{0, getRoughness(shininess), metallic, 1}};
-                },
-                false);
+              aoMetRoughTex = textureBuilder.combine(
+                  {
+                      material.textures[RAW_TEXTURE_USAGE_SHININESS],
+                  },
+                  "ao_met_rough",
+                  [&](const std::vector<const TextureBuilder::pixel*> pixels)
+                      -> TextureBuilder::pixel {
+                    // do not multiply with props->shininess; that doesn't work like the other
+                    // factors.
+                    float shininess = props->shininess * (*pixels[0])[0];
+                    return {{0, getRoughness(shininess), metallic, 1}};
+                  },
+                  false);
+            }
 
             if (aoMetRoughTex != nullptr) {
               // if we successfully built a texture, factors are just multiplicative identity
               metallic = roughness = 1.0f;
             } else {
               // no shininess texture,
-//              roughness = getRoughness(props->shininess);
+              //              roughness = getRoughness(props->shininess);
               roughness = 0.8f;
             }
 
@@ -393,6 +414,7 @@ ModelData* Raw2Gltf(
           occlusionTexture,
           emissiveTexture,
           emissiveFactor * emissiveIntensity,
+          modulationTexture,
           khrCmnUnlitMat,
           pbrMetRough));
       materialsById[material.id] = mData;
@@ -458,7 +480,7 @@ ModelData* Raw2Gltf(
         indexes.count = to_uint32(3 * triangleCount);
         primitive.reset(new PrimitiveData(indexes, mData, dracoMesh));
 #else
-          std::cerr << "Error: Draco not compiled\n";
+        std::cerr << "Error: Draco not compiled\n";
 #endif
       } else {
         const AccessorData& indexes = *gltf->AddAccessorWithView(
@@ -489,7 +511,8 @@ ModelData* Raw2Gltf(
               &RawVertex::position,
               GLT_VEC3F
 #ifdef USE_DRACO
-              ,draco::GeometryAttribute::POSITION,
+              ,
+              draco::GeometryAttribute::POSITION,
               draco::DT_FLOAT32
 #endif
           );
@@ -507,7 +530,8 @@ ModelData* Raw2Gltf(
               &RawVertex::normal,
               GLT_VEC3F
 #ifdef USE_DRACO
-              ,draco::GeometryAttribute::NORMAL,
+              ,
+              draco::GeometryAttribute::NORMAL,
               draco::DT_FLOAT32
 #endif
           );
@@ -527,7 +551,8 @@ ModelData* Raw2Gltf(
               &RawVertex::color,
               GLT_VEC4F
 #ifdef USE_DRACO
-              ,draco::GeometryAttribute::COLOR,
+              ,
+              draco::GeometryAttribute::COLOR,
               draco::DT_FLOAT32
 #endif
           );
@@ -539,8 +564,9 @@ ModelData* Raw2Gltf(
               "TEXCOORD_0",
               &RawVertex::uv0,
               GLT_VEC2F
-#ifdef USE_DRACO 
-              ,draco::GeometryAttribute::TEX_COORD,
+#ifdef USE_DRACO
+              ,
+              draco::GeometryAttribute::TEX_COORD,
               draco::DT_FLOAT32
 #endif
           );
@@ -553,7 +579,8 @@ ModelData* Raw2Gltf(
               &RawVertex::uv1,
               GLT_VEC2F
 #ifdef USE_DRACO
-              ,draco::GeometryAttribute::TEX_COORD,
+              ,
+              draco::GeometryAttribute::TEX_COORD,
               draco::DT_FLOAT32
 #endif
           );
@@ -606,20 +633,21 @@ ModelData* Raw2Gltf(
           for (int jj = 0; jj < surfaceModel.GetVertexCount(); jj++) {
             auto blendVertex = surfaceModel.GetVertex(jj).blends[channelIx];
             shapeBounds.AddPoint(blendVertex.position);
-            bool isSparseVertex = options.disableSparseBlendShapes; // If sparse is off, add all vertices
+            bool isSparseVertex =
+                options.disableSparseBlendShapes; // If sparse is off, add all vertices
             // Check to see whether position, normal or tangent deviates from base mesh and flag as
             // sparse.
             if (blendVertex.position.Length() > 0.00) {
               isSparseVertex = true;
             }
-//            if (options.useBlendShapeNormals && channel.hasNormals &&
-//                blendVertex.normal.Length() > 0.00) {
-//              isSparseVertex = true;
-//            }
-//            if (options.useBlendShapeTangents && channel.hasTangents &&
-//                blendVertex.tangent.Length() > 0.00) {
-//              isSparseVertex = true;
-//            }
+            //            if (options.useBlendShapeNormals && channel.hasNormals &&
+            //                blendVertex.normal.Length() > 0.00) {
+            //              isSparseVertex = true;
+            //            }
+            //            if (options.useBlendShapeTangents && channel.hasTangents &&
+            //                blendVertex.tangent.Length() > 0.00) {
+            //              isSparseVertex = true;
+            //            }
             if (isSparseVertex == true) {
               sparseIndices.push_back(jj);
               positions.push_back(blendVertex.position);
@@ -768,7 +796,7 @@ ModelData* Raw2Gltf(
             gltf->AddRawBufferView(buffer, dracoBuffer.data(), to_uint32(dracoBuffer.size()));
         primitive->NoteDracoBuffer(*view);
 #else
-          std::cerr << "Error: Draco not compiled\n";
+        std::cerr << "Error: Draco not compiled\n";
 #endif
       }
       mesh->AddPrimitive(primitive);

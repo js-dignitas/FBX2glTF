@@ -129,6 +129,79 @@ static void calcMinMax(
   }
 }
 
+static std::vector<std::string> split(const std::string &str, const std::string &delimiter) {
+
+    std::string s = str;
+  std::vector<std::string> result;
+  size_t pos = 0;
+  std::string token;
+  while ((pos = s.find(delimiter)) != std::string::npos) {
+    token = s.substr(0, pos);
+    result.push_back(token);
+    s.erase(0, pos + delimiter.length());
+  }
+  result.push_back(s);
+  return result;
+}
+
+bool changeOwtTexture(std::string& name, const std::string &colorScheme, const std::string &state, const std::string &texType) {
+  auto tokens = split(name, "_");
+  std::stringstream newName;
+  if (tokens.size() > 3) {
+    for (int i = 0; i < tokens.size(); i++) {
+        if (i == tokens.size() - 3 && colorScheme != "") { // Color scheme
+            // Use "all" for the color scheme
+            newName << "_" << colorScheme;
+        } else if (i == tokens.size() - 2 && state != "") { // State
+            newName << "_" << state;
+        } else if (i == tokens.size() - 1) { // Last token with "diff" in the token
+            // replace "diff" with texTye
+            std::string lastToken = tokens[i];
+            auto index = lastToken.find("diff", 0);
+            if (index == std::string::npos)
+              return false;
+            lastToken.replace(index, 4, texType);
+            newName << "_" << lastToken;
+        } else {
+            newName << (i == 0 ? "" : "_");
+            newName << tokens[i];
+        }
+    }
+    name = newName.str();
+  }
+  return false;
+}
+static void maybeAddOwtTexture(
+    RawModel& raw,
+    const FbxFileTexture *tex,
+    int textures[RAW_TEXTURE_USAGE_MAX],
+    const std::map<const FbxTexture*, FbxString>& textureLocations, 
+    RawTextureUsage textureUsage,
+    const std::string &colorScheme,
+    const std::string &state,
+    const std::string &texType) {
+
+  // JDS: Try to find the _ref.tga texture
+  // If it is found, then add it as the aoMetRough texture, and use same transform as the diff
+  // texture
+  textures[textureUsage] = -1;
+  if (tex != nullptr) {
+    std::string filename = tex->GetFileName();
+    std::string filepath = textureLocations.find(tex)->second;
+    std::string name = tex->GetName();
+
+    changeOwtTexture(filename,colorScheme, state, texType);
+    changeOwtTexture(filepath,colorScheme, state, texType);
+    changeOwtTexture(name,colorScheme, state, texType);
+    if (FileUtils::FileExists(filepath)) {
+      Vec2f translation(tex->GetTranslationU(), tex->GetTranslationV());
+      float rotation = tex->GetRotationW(); // FIXME is this right?
+      Vec2f scale(tex->GetScaleU(), tex->GetScaleV());
+
+      textures[textureUsage] = raw.AddTexture(name, filename, filepath, textureUsage, translation, rotation, scale);
+    }
+  }
+}
 static void ReadMesh(
     RawModel& raw,
     FbxScene* pScene,
@@ -309,6 +382,10 @@ static void ReadMesh(
         maybeAddTexture(fbxMatInfo->texRoughness, RAW_TEXTURE_USAGE_ROUGHNESS);
         maybeAddTexture(fbxMatInfo->texMetallic, RAW_TEXTURE_USAGE_METALLIC);
         maybeAddTexture(fbxMatInfo->texAmbientOcclusion, RAW_TEXTURE_USAGE_OCCLUSION);
+
+        maybeAddOwtTexture(raw, fbxMatInfo->texBaseColor, textures, textureLocations, RAW_TEXTURE_USAGE_AO_MET_ROUGH, "all", "", "ref");
+        maybeAddOwtTexture(raw, fbxMatInfo->texBaseColor, textures, textureLocations, RAW_TEXTURE_USAGE_MODULATION, "all", "damage", "mask");
+
         rawMatProps.reset(new RawMetRoughMatProps(
             RAW_SHADING_MODEL_PBR_MET_ROUGH,
             toVec4f(fbxMatInfo->baseColor),
@@ -338,13 +415,29 @@ static void ReadMesh(
         maybeAddTexture(fbxMatInfo->texShininess, RAW_TEXTURE_USAGE_SHININESS);
         maybeAddTexture(fbxMatInfo->texAmbient, RAW_TEXTURE_USAGE_AMBIENT);
         maybeAddTexture(fbxMatInfo->texSpecular, RAW_TEXTURE_USAGE_SPECULAR);
-        rawMatProps.reset(new RawTraditionalMatProps(
-            shadingModel,
-            toVec3f(fbxMatInfo->colAmbient),
-            toVec4f(fbxMatInfo->colDiffuse),
-            toVec3f(fbxMatInfo->colEmissive),
-            toVec3f(fbxMatInfo->colSpecular),
-            fbxMatInfo->shininess));
+        maybeAddOwtTexture(raw, fbxMatInfo->texDiffuse, textures, textureLocations,
+            RAW_TEXTURE_USAGE_AO_MET_ROUGH, "all", "", "ref");
+        maybeAddOwtTexture(raw, fbxMatInfo->texDiffuse, textures, textureLocations,
+            RAW_TEXTURE_USAGE_MODULATION, "all", "damage", "mask");
+
+        if (textures[RAW_TEXTURE_USAGE_AO_MET_ROUGH] >= 0) {
+          rawMatProps.reset(new RawMetRoughMatProps(
+              RAW_SHADING_MODEL_PBR_MET_ROUGH,
+              toVec4f(fbxMatInfo->colDiffuse),
+              toVec3f(fbxMatInfo->colEmissive),
+              0,
+              1,
+              1,
+              false));
+        } else {
+          rawMatProps.reset(new RawTraditionalMatProps(
+              shadingModel,
+              toVec3f(fbxMatInfo->colAmbient),
+              toVec4f(fbxMatInfo->colDiffuse),
+              toVec3f(fbxMatInfo->colEmissive),
+              toVec3f(fbxMatInfo->colSpecular),
+              fbxMatInfo->shininess));
+        }
       }
     }
 

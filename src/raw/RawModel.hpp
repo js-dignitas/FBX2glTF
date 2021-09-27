@@ -134,6 +134,8 @@ enum RawTextureUsage {
   RAW_TEXTURE_USAGE_OCCLUSION,
   RAW_TEXTURE_USAGE_ROUGHNESS,
   RAW_TEXTURE_USAGE_METALLIC,
+  RAW_TEXTURE_USAGE_AO_MET_ROUGH,
+  RAW_TEXTURE_USAGE_MODULATION,
   RAW_TEXTURE_USAGE_MAX
 };
 
@@ -161,6 +163,10 @@ inline std::string Describe(RawTextureUsage usage) {
       return "roughness";
     case RAW_TEXTURE_USAGE_METALLIC:
       return "metallic";
+    case RAW_TEXTURE_USAGE_AO_MET_ROUGH:
+      return "aoMetRough";
+    case RAW_TEXTURE_USAGE_MODULATION:
+      return "modulation";
     case RAW_TEXTURE_USAGE_MAX:
     default:
       return "unknown";

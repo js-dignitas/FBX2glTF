@@ -94,6 +94,7 @@ MaterialData::MaterialData(
     const TextureData* occlusionTexture,
     const TextureData* emissiveTexture,
     const Vec3f& emissiveFactor,
+    const TextureData* modulationTexture,
     std::shared_ptr<KHRCmnUnlitMaterial> const khrCmnConstantMaterial,
     std::shared_ptr<PBRMetallicRoughness> const pbrMetallicRoughness)
     : Holdable(),
@@ -104,6 +105,7 @@ MaterialData::MaterialData(
       occlusionTexture(Tex::ref(occlusionTexture)),
       emissiveTexture(Tex::ref(emissiveTexture)),
       emissiveFactor(clamp(emissiveFactor)),
+      modulationTexture(Tex::ref(modulationTexture)),
       khrCmnConstantMaterial(khrCmnConstantMaterial),
       pbrMetallicRoughness(pbrMetallicRoughness) {}
 
@@ -138,6 +140,10 @@ json MaterialData::serialize() const {
   }
   if (emissiveTexture != nullptr) {
     result["emissiveTexture"] = *emissiveTexture;
+  }
+  if (modulationTexture != nullptr) {
+    auto& owtExtras = result["extras"]["owt"];
+    owtExtras["modulationTexture"] = *modulationTexture;
   }
   if (emissiveFactor.LengthSquared() > 0) {
     result["emissiveFactor"] = toStdVec(emissiveFactor);
