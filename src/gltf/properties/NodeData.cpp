@@ -52,6 +52,10 @@ void NodeData::SetLight(uint32_t lightIndex) {
   light = lightIndex;
 }
 
+void snapToZero(float &f) {
+  const float eps = 1e-10;
+  if (std::fabs(f) < eps) f = 0;
+}
 json NodeData::serialize() const {
   json result = {{"name", name}};
 
@@ -61,9 +65,27 @@ json NodeData::serialize() const {
       result[key] = vec;
     }
   };
-  maybeAdd("translation", toStdVec(translation));
-  maybeAdd("rotation", toStdVec(rotation));
-  maybeAdd("scale", toStdVec(scale));
+  Vec3f trans = translation; 
+  snapToZero(trans.x);
+  snapToZero(trans.y);
+  snapToZero(trans.z);
+  if (trans.LengthSquared() > 0) {
+    maybeAdd("translation", toStdVec(trans));
+  }
+
+  auto quat = rotation;
+  auto &q = quat.vector();
+  snapToZero(q[0]);
+  snapToZero(q[1]);
+  snapToZero(q[2]);
+
+  if (q[0] != 0 || q[1] != 0 || q[2] != 0 || quat.scalar() != 1.0f) {
+    maybeAdd("rotation", toStdVec(quat));
+  }
+
+  if (scale.x != 1.0f || scale.y != 1.0f || scale.z != 1.0) {
+    maybeAdd("scale", toStdVec(scale));
+  }
 
   if (!children.empty()) {
     result["children"] = children;
