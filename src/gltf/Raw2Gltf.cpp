@@ -587,7 +587,15 @@ ModelData* Raw2Gltf(
           const auto _ = gltf->AddAttributeToPrimitive<Vec2f>(
               buffer, surfaceModel, *primitive, ATTR_TEXCOORD_1);
         }
-        if ((surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_JOINT_INDICES) != 0) {
+        bool isSkinned = false;
+        for(int i = 0; i < surfaceModel.GetMaterialCount(); i++) {
+            auto &mat = surfaceModel.GetMaterial(i);
+            isSkinned = isSkinned ||
+                mat.type == RAW_MATERIAL_TYPE_SKINNED_OPAQUE ||
+                mat.type == RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT ||
+                mat.type == RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK;
+        }
+        if (isSkinned && (surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_JOINT_INDICES) != 0) {
           for (int i = 0; i < surfaceModel.GetGlobalWeightCount(); i += 4) {
             const AttributeArrayDefinition<Vec4i> ATTR_JOINTS(
                 std::string("JOINTS_") + std::to_string(i / 4),
@@ -602,7 +610,7 @@ ModelData* Raw2Gltf(
                 buffer, surfaceModel, *primitive, ATTR_JOINTS);
           }
         }
-        if ((surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_JOINT_WEIGHTS) != 0) {
+        if (isSkinned && (surfaceModel.GetVertexAttributes() & RAW_VERTEX_ATTRIBUTE_JOINT_WEIGHTS) != 0) {
           for (int i = 0; i < surfaceModel.GetGlobalWeightCount(); i += 4) {
             const AttributeArrayDefinition<Vec4f> ATTR_WEIGHTS(
                 std::string("WEIGHTS_") + std::to_string(i / 4),

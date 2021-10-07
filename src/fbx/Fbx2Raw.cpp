@@ -84,19 +84,21 @@ static RawMaterialType GetMaterialType(
   // determine material type based on texture occlusion.
   if (diffuseTexture >= 0) {
     switch (raw.GetTexture(diffuseTexture).occlusion) {
-    case RAW_TEXTURE_OCCLUSION_OPAQUE:
-      return skinned ? RAW_MATERIAL_TYPE_SKINNED_OPAQUE : RAW_MATERIAL_TYPE_OPAQUE;
-    case RAW_TEXTURE_OCCLUSION_TRANSPARENT: // might fallthrough
+      case RAW_TEXTURE_OCCLUSION_OPAQUE:
+        return skinned ? RAW_MATERIAL_TYPE_SKINNED_OPAQUE : RAW_MATERIAL_TYPE_OPAQUE;
+      case RAW_TEXTURE_OCCLUSION_TRANSPARENT: // might fallthrough
         if (!raw.forceMask) {
-            return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
+          return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
         }
         // fallthrough
-    case RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK:
-      return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK : RAW_MATERIAL_TYPE_TRANSPARENT_MASK; 
+      case RAW_TEXTURE_OCCLUSION_TRANSPARENT_MASK:
+        return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT_MASK
+                       : RAW_MATERIAL_TYPE_TRANSPARENT_MASK;
     }
   }
 
-  // else if there is any vertex transparency or base prop transparency, treat whole mesh as transparent
+  // else if there is any vertex transparency or base prop transparency, treat whole mesh as
+  // transparent
   if (vertexTransparency || props.hasTransparency()) {
     return skinned ? RAW_MATERIAL_TYPE_SKINNED_TRANSPARENT : RAW_MATERIAL_TYPE_TRANSPARENT;
   }
@@ -129,9 +131,8 @@ static void calcMinMax(
   }
 }
 
-static std::vector<std::string> split(const std::string &str, const std::string &delimiter) {
-
-    std::string s = str;
+static std::vector<std::string> split(const std::string& str, const std::string& delimiter) {
+  std::string s = str;
   std::vector<std::string> result;
   size_t pos = 0;
   std::string token;
@@ -144,28 +145,32 @@ static std::vector<std::string> split(const std::string &str, const std::string 
   return result;
 }
 
-bool changeOwtTexture(std::string& name, const std::string &colorScheme, const std::string &state, const std::string &texType) {
+bool changeOwtTexture(
+    std::string& name,
+    const std::string& colorScheme,
+    const std::string& state,
+    const std::string& texType) {
   auto tokens = split(name, "_");
   std::stringstream newName;
   if (tokens.size() > 3) {
     for (int i = 0; i < tokens.size(); i++) {
-        if (i == tokens.size() - 3 && colorScheme != "") { // Color scheme
-            // Use "all" for the color scheme
-            newName << "_" << colorScheme;
-        } else if (i == tokens.size() - 2 && state != "") { // State
-            newName << "_" << state;
-        } else if (i == tokens.size() - 1) { // Last token with "diff" in the token
-            // replace "diff" with texTye
-            std::string lastToken = tokens[i];
-            auto index = lastToken.find("diff", 0);
-            if (index == std::string::npos)
-              return false;
-            lastToken.replace(index, 4, texType);
-            newName << "_" << lastToken;
-        } else {
-            newName << (i == 0 ? "" : "_");
-            newName << tokens[i];
-        }
+      if (i == tokens.size() - 3 && colorScheme != "") { // Color scheme
+        // Use "all" for the color scheme
+        newName << "_" << colorScheme;
+      } else if (i == tokens.size() - 2 && state != "") { // State
+        newName << "_" << state;
+      } else if (i == tokens.size() - 1) { // Last token with "diff" in the token
+        // replace "diff" with texTye
+        std::string lastToken = tokens[i];
+        auto index = lastToken.find("diff", 0);
+        if (index == std::string::npos)
+          return false;
+        lastToken.replace(index, 4, texType);
+        newName << "_" << lastToken;
+      } else {
+        newName << (i == 0 ? "" : "_");
+        newName << tokens[i];
+      }
     }
     name = newName.str();
   }
@@ -173,14 +178,13 @@ bool changeOwtTexture(std::string& name, const std::string &colorScheme, const s
 }
 static void maybeAddOwtTexture(
     RawModel& raw,
-    const FbxFileTexture *tex,
+    const FbxFileTexture* tex,
     int textures[RAW_TEXTURE_USAGE_MAX],
-    const std::map<const FbxTexture*, FbxString>& textureLocations, 
+    const std::map<const FbxTexture*, FbxString>& textureLocations,
     RawTextureUsage textureUsage,
-    const std::string &colorScheme,
-    const std::string &state,
-    const std::string &texType) {
-
+    const std::string& colorScheme,
+    const std::string& state,
+    const std::string& texType) {
   // JDS: Try to find the _ref.tga texture
   // If it is found, then add it as the aoMetRough texture, and use same transform as the diff
   // texture
@@ -190,15 +194,16 @@ static void maybeAddOwtTexture(
     std::string filepath = textureLocations.find(tex)->second;
     std::string name = tex->GetName();
 
-    changeOwtTexture(filename,colorScheme, state, texType);
-    changeOwtTexture(filepath,colorScheme, state, texType);
-    changeOwtTexture(name,colorScheme, state, texType);
+    changeOwtTexture(filename, colorScheme, state, texType);
+    changeOwtTexture(filepath, colorScheme, state, texType);
+    changeOwtTexture(name, colorScheme, state, texType);
     if (FileUtils::FileExists(filepath)) {
       Vec2f translation(tex->GetTranslationU(), tex->GetTranslationV());
       float rotation = tex->GetRotationW(); // FIXME is this right?
       Vec2f scale(tex->GetScaleU(), tex->GetScaleV());
 
-      textures[textureUsage] = raw.AddTexture(name, filename, filepath, textureUsage, translation, rotation, scale);
+      textures[textureUsage] =
+          raw.AddTexture(name, filename, filepath, textureUsage, translation, rotation, scale);
     }
   }
 }
@@ -343,7 +348,8 @@ static void ReadMesh(
     if (fbxMaterial == nullptr) {
       materialName = "DefaultMaterial";
       materialId = -1;
-      // Default to defaults from https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#reference-material
+      // Default to defaults from
+      // https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#reference-material
       rawMatProps.reset(new RawMetRoughMatProps(
           RAW_SHADING_MODEL_PBR_MET_ROUGH,
           Vec4f(1, 1, 1, 1),
@@ -366,8 +372,14 @@ static void ReadMesh(
           float rotation = tex->GetRotationW(); // FIXME is this right?
           Vec2f scale(tex->GetScaleU(), tex->GetScaleV());
 
-          textures[usage] =
-              raw.AddTexture(tex->GetName(), tex->GetFileName(), inferredPath.Buffer(), usage, translation, rotation, scale);
+          textures[usage] = raw.AddTexture(
+              tex->GetName(),
+              tex->GetFileName(),
+              inferredPath.Buffer(),
+              usage,
+              translation,
+              rotation,
+              scale);
         }
       };
 
@@ -383,8 +395,24 @@ static void ReadMesh(
         maybeAddTexture(fbxMatInfo->texMetallic, RAW_TEXTURE_USAGE_METALLIC);
         maybeAddTexture(fbxMatInfo->texAmbientOcclusion, RAW_TEXTURE_USAGE_OCCLUSION);
 
-        maybeAddOwtTexture(raw, fbxMatInfo->texBaseColor, textures, textureLocations, RAW_TEXTURE_USAGE_AO_MET_ROUGH, "all", "", "ref");
-        maybeAddOwtTexture(raw, fbxMatInfo->texBaseColor, textures, textureLocations, RAW_TEXTURE_USAGE_MODULATION, "all", "damage", "mask");
+        maybeAddOwtTexture(
+            raw,
+            fbxMatInfo->texBaseColor,
+            textures,
+            textureLocations,
+            RAW_TEXTURE_USAGE_AO_MET_ROUGH,
+            "all",
+            "",
+            "ref");
+        maybeAddOwtTexture(
+            raw,
+            fbxMatInfo->texBaseColor,
+            textures,
+            textureLocations,
+            RAW_TEXTURE_USAGE_MODULATION,
+            "all",
+            "damage",
+            "mask");
 
         rawMatProps.reset(new RawMetRoughMatProps(
             RAW_SHADING_MODEL_PBR_MET_ROUGH,
@@ -415,10 +443,24 @@ static void ReadMesh(
         maybeAddTexture(fbxMatInfo->texShininess, RAW_TEXTURE_USAGE_SHININESS);
         maybeAddTexture(fbxMatInfo->texAmbient, RAW_TEXTURE_USAGE_AMBIENT);
         maybeAddTexture(fbxMatInfo->texSpecular, RAW_TEXTURE_USAGE_SPECULAR);
-        maybeAddOwtTexture(raw, fbxMatInfo->texDiffuse, textures, textureLocations,
-            RAW_TEXTURE_USAGE_AO_MET_ROUGH, "all", "", "ref");
-        maybeAddOwtTexture(raw, fbxMatInfo->texDiffuse, textures, textureLocations,
-            RAW_TEXTURE_USAGE_MODULATION, "all", "damage", "mask");
+        maybeAddOwtTexture(
+            raw,
+            fbxMatInfo->texDiffuse,
+            textures,
+            textureLocations,
+            RAW_TEXTURE_USAGE_AO_MET_ROUGH,
+            "all",
+            "",
+            "ref");
+        maybeAddOwtTexture(
+            raw,
+            fbxMatInfo->texDiffuse,
+            textures,
+            textureLocations,
+            RAW_TEXTURE_USAGE_MODULATION,
+            "all",
+            "damage",
+            "mask");
 
         if (textures[RAW_TEXTURE_USAGE_AO_MET_ROUGH] >= 0) {
           rawMatProps.reset(new RawMetRoughMatProps(
@@ -857,7 +899,13 @@ static void ReadNodeHierarchy(
     }
   } else {
     // If there is no parent then this is the root node.
-    raw.SetRootNode(nodeId);
+    auto rootNodeId = raw.GetRootNode();
+    if (rootNodeId != -1) {
+      RawNode& parentNode = raw.GetNode(raw.GetNodeById(rootNodeId));
+      parentNode.childIds.push_back(nodeId);
+    } else {
+        raw.SetRootNode(nodeId);
+    }
   }
 
   for (int child = 0; child < pNode->GetChildCount(); child++) {
@@ -865,17 +913,23 @@ static void ReadNodeHierarchy(
   }
 }
 
-// This anim evaluator caches results, speeding up animation conversion enormously in cases where there's a large
-// hierarchy in the FBX scene. Without this, EvaluateLocalTransform() ends up recalculating every node up the hierarchy
-// on every call, even if we've previously calculated that transform. Trades memory for speed, but can literally take
-// a conversion that takes 35 minutes and make it take 8.
+// This anim evaluator caches results, speeding up animation conversion enormously in cases where
+// there's a large hierarchy in the FBX scene. Without this, EvaluateLocalTransform() ends up
+// recalculating every node up the hierarchy on every call, even if we've previously calculated that
+// transform. Trades memory for speed, but can literally take a conversion that takes 35 minutes and
+// make it take 8.
 class CachingAnimEvaluator : public FbxAnimEvalClassic {
   FBXSDK_OBJECT_DECLARE(CachingAnimEvaluator, FbxAnimEvalClassic);
 
   typedef std::tuple<FbxNode*, FbxTime, FbxNode::EPivotSet, bool> KeyType;
 
-protected:
-  void EvaluateNodeTransform(FbxNodeEvalState* pResult, FbxNode* pNode, const FbxTime& pTime, FbxNode::EPivotSet pPivotSet, bool pApplyTarget) override {
+ protected:
+  void EvaluateNodeTransform(
+      FbxNodeEvalState* pResult,
+      FbxNode* pNode,
+      const FbxTime& pTime,
+      FbxNode::EPivotSet pPivotSet,
+      bool pApplyTarget) override {
     auto cacheKey = std::make_tuple(pNode, pTime, pPivotSet, pApplyTarget);
     auto it = cache_.find(cacheKey);
     if (it != cache_.end()) {
@@ -889,7 +943,7 @@ protected:
     cache_[cacheKey] = std::move(cacheState);
   }
 
-private:
+ private:
   std::map<KeyType, std::unique_ptr<FbxNodeEvalState>> cache_;
 };
 
@@ -990,17 +1044,28 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
       FbxQuaternion baseRotation = baseTransform.GetQ();
       const FbxVector4 baseScaling = computeLocalScale(pNode);
 
-      if (isnan(baseTranslation[0]) || isnan(baseTranslation[1]) || isnan(baseTranslation[2]) || isnan(baseTranslation[3])) {
+      if (isnan(baseTranslation[0]) || isnan(baseTranslation[1]) || isnan(baseTranslation[2]) ||
+          isnan(baseTranslation[3])) {
         baseTranslation = FbxVector4(0, 0, 0, 1);
       }
 
-      if (isnan(baseRotation[0]) || isnan(baseRotation[1]) || isnan(baseRotation[2]) || isnan(baseRotation[3])) {
+      if (isnan(baseRotation[0]) || isnan(baseRotation[1]) || isnan(baseRotation[2]) ||
+          isnan(baseRotation[3])) {
         baseRotation = FbxQuaternion(0, 0, 0, 1);
       }
 
       fmt::printf("Node %s\n", pNode->GetName());
-      fmt::printf("baseTranslation: %f, %f, %f\n", baseTranslation[0], baseTranslation[1], baseTranslation[2]);
-      fmt::printf("baseRotation: %f, %f, %f, %f\n", baseRotation[0], baseRotation[1], baseRotation[2], baseRotation[3]);
+      fmt::printf(
+          "baseTranslation: %f, %f, %f\n",
+          baseTranslation[0],
+          baseTranslation[1],
+          baseTranslation[2]);
+      fmt::printf(
+          "baseRotation: %f, %f, %f, %f\n",
+          baseRotation[0],
+          baseRotation[1],
+          baseRotation[2],
+          baseRotation[3]);
       fmt::printf("baseScaling: %f, %f, %f\n", baseScaling[0], baseScaling[1], baseScaling[2]);
 
       RawChannel channel;
@@ -1171,12 +1236,17 @@ static std::string FindFbxTexture(
       return FileUtils::GetAbsolutePath(fileLocation);
     }
   }
-  //Replace slashes with alternative platform version (e.g. '/' instead of '\\')
+  // Replace slashes with alternative platform version (e.g. '/' instead of '\\')
   std::string textureFileNameAltSlash = textureFileName;
-  std::replace( textureFileNameAltSlash.begin(), textureFileNameAltSlash.end(), ALTERNATIVE_SLASH_CHAR, SLASH_CHAR);
+  std::replace(
+      textureFileNameAltSlash.begin(),
+      textureFileNameAltSlash.end(),
+      ALTERNATIVE_SLASH_CHAR,
+      SLASH_CHAR);
   // finally look with alternative slashes
   for (int ii = 0; ii < folders.size(); ii++) {
-    const auto& fileLocation = FindFileLoosely(textureFileNameAltSlash, folders[ii], folderContents[ii]);
+    const auto& fileLocation =
+        FindFileLoosely(textureFileNameAltSlash, folders[ii], folderContents[ii]);
     if (!fileLocation.empty()) {
       return FileUtils::GetAbsolutePath(fileLocation);
     }
@@ -1258,7 +1328,8 @@ bool LoadFBXFile(
 
   FbxIOSettings* pIoSettings = FbxIOSettings::Create(pManager, IOSROOT);
   pManager->SetIOSettings(pIoSettings);
-  pManager->RegisterFbxClass("CachingAnimEvaluator", FBX_TYPE(CachingAnimEvaluator), FBX_TYPE(FbxAnimEvalClassic));
+  pManager->RegisterFbxClass(
+      "CachingAnimEvaluator", FBX_TYPE(CachingAnimEvaluator), FBX_TYPE(FbxAnimEvalClassic));
 
   FbxImporter* pImporter = FbxImporter::Create(pManager, "");
 

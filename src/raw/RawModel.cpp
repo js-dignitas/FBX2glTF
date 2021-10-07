@@ -95,7 +95,7 @@ size_t RawVertex::Difference(const RawVertex& other) const {
   return attributes;
 }
 
-RawModel::RawModel() : vertexAttributes(0){}
+RawModel::RawModel() : vertexAttributes(0), rootNodeId(-1) {}
 
 void RawModel::AddVertexAttribute(const RawVertexAttribute attrib) {
   vertexAttributes |= attrib;
@@ -186,6 +186,25 @@ int RawModel::AddMaterial(const RawMaterial& material) {
       material.userProperties);
 }
 
+bool HasMaterialName(
+    const std::string& name,
+    std::vector<RawMaterial> materials) {
+  for (size_t i = 0; i < materials.size(); i++) {
+    if (materials[i].name == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string GetUniqueMaterialName(
+    const std::string &name,
+    std::vector<RawMaterial> materials) {
+    if (HasMaterialName(name, materials)) {
+        return name + "_2";
+    }
+    return name;
+}
 int RawModel::AddMaterial(
     const long id,
     const char* name,
@@ -226,9 +245,10 @@ int RawModel::AddMaterial(
     }
   }
 
+
   RawMaterial material;
   material.id = id;
-  material.name = name;
+  material.name = GetUniqueMaterialName(name, materials);
   material.type = materialType;
   material.info = materialInfo;
   material.userProperties = userProperties;

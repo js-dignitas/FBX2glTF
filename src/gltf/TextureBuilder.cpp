@@ -213,7 +213,11 @@ std::shared_ptr<TextureData> TextureBuilder::simple(int rawTexIndex, const std::
       tmpFolder = outputFolder+"/convertedTextures";
     }
 
-    bool precise = rawTexture.usage == RAW_TEXTURE_USAGE_NORMAL || rawTexture.usage == RAW_TEXTURE_USAGE_SHININESS;
+    bool precise = rawTexture.usage == RAW_TEXTURE_USAGE_NORMAL ||
+        rawTexture.usage == RAW_TEXTURE_USAGE_SHININESS ||
+        rawTexture.usage == RAW_TEXTURE_USAGE_AO_MET_ROUGH ||
+        rawTexture.usage == RAW_TEXTURE_USAGE_MODULATION;
+
     bool transparent = rawTexture.occlusion != RAW_TEXTURE_OCCLUSION_OPAQUE;
     std::string ext = transparent || precise ? ".png" : ".jpg";
     std::string tmpPath = tmpFolder + "/" + baseName + ext;

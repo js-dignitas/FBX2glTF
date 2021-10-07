@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.5)
 project(FBX2glTF)
 
+option(BUILD_OFFLINE "Build offline" off)
+if(${BUILD_OFFLINE})
+    set_property(DIRECTORY ${FBX2glTF_SOURCE_DIR}
+        PROPERTY EP_UPDATE_DISCONNECTED)
+endif()
+
 set(typical_usage_str
   "Example usage:\n\
   > mkdir -p build_debug\n\
@@ -95,21 +101,24 @@ set(MATHFU_INCLUDE_DIRS
         "${CMAKE_BINARY_DIR}/mathfu/src/MathFu/include/"
         "${CMAKE_BINARY_DIR}/mathfu/src/MathFu/dependencies/vectorial/include")
 
+
 # OrderedMap
 ExternalProject_Add(FiFoMap
   PREFIX fifo_map
   GIT_REPOSITORY https://github.com/nlohmann/fifo_map
+  GIT_TAG ece94577bc89759ff68244debb00e77f9c6de64e
   CONFIGURE_COMMAND ${CMAKE_COMMAND} -E echo "Skipping FiFoMap configure step."
   BUILD_COMMAND ${CMAKE_COMMAND} -E echo "Skipping FiFoMap build step."
   INSTALL_COMMAND ${CMAKE_COMMAND} -E echo "Skipping FiFoMap install step."
+  UPDATE_DISCONNECTED
 )
 set(FIFO_MAP_INCLUDE_DIR "${CMAKE_BINARY_DIR}/fifo_map/src/FiFoMap/src")
-
 
 # cppcodec
 ExternalProject_Add(CPPCodec
   PREFIX cppcodec
   GIT_REPOSITORY https://github.com/tplgy/cppcodec
+  GIT_TAG 9838f9eaf077e42121cb42361e9a1613901fc5e8
   CONFIGURE_COMMAND ${CMAKE_COMMAND} -E echo "Skipping CPPCodec configure step."
   BUILD_COMMAND ${CMAKE_COMMAND} -E echo "Skipping CPPCodec build step."
   INSTALL_COMMAND ${CMAKE_COMMAND} -E echo "Skipping CPPCodec install step."
