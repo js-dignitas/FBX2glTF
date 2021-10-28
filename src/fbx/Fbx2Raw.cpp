@@ -414,6 +414,16 @@ static void ReadMesh(
             "damage",
             "mask");
 
+        maybeAddOwtTexture(
+            raw,
+            fbxMatInfo->texBaseColor,
+            textures,
+            textureLocations,
+            RAW_TEXTURE_USAGE_NORMAL,
+            "all",
+            "",
+            "norm");
+
         rawMatProps.reset(new RawMetRoughMatProps(
             RAW_SHADING_MODEL_PBR_MET_ROUGH,
             toVec4f(fbxMatInfo->baseColor),
@@ -461,6 +471,16 @@ static void ReadMesh(
             "all",
             "damage",
             "mask");
+
+        maybeAddOwtTexture(
+            raw,
+            fbxMatInfo->texDiffuse,
+            textures,
+            textureLocations,
+            RAW_TEXTURE_USAGE_NORMAL,
+            "all",
+            "",
+            "norm");
 
         if (textures[RAW_TEXTURE_USAGE_AO_MET_ROUGH] >= 0) {
           rawMatProps.reset(new RawMetRoughMatProps(
