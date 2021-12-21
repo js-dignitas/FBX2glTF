@@ -156,6 +156,9 @@ ModelData* Raw2Gltf(
     for (int i = 0; i < raw.GetAnimationCount(); i++) {
       const RawAnimation& animation = raw.GetAnimation(i);
 
+      if (animation.times.size() == 0)
+        continue;
+
       auto accessor = gltf->AddAccessorAndView(buffer, GLT_FLOAT, animation.times);
       accessor->min = {*std::min_element(std::begin(animation.times), std::end(animation.times))};
       accessor->max = {*std::max_element(std::begin(animation.times), std::end(animation.times))};
@@ -431,8 +434,10 @@ ModelData* Raw2Gltf(
 
       const RawMaterial& rawMaterial =
           surfaceModel.GetMaterial(surfaceModel.GetTriangle(0).materialIndex);
-      fmt::printf(
+      if (verboseOutput)
+        fmt::printf(
           "Seeking material of id %d, name %s...\n", rawMaterial.id, rawMaterial.name.c_str());
+
       const MaterialData& mData = require(materialsById, rawMaterial.id);
 
       if (verboseOutput)

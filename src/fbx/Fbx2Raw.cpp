@@ -1040,10 +1040,10 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
     RawAnimation animation;
     animation.name = animStackName;
 
-    fmt::printf(
-        "Animation %s: [%lu - %lu]\n", std::string(animStackName), firstFrameIndex, lastFrameIndex);
-
     if (verboseOutput) {
+      fmt::printf(
+            "Animation %s: [%lu - %lu]\n", std::string(animStackName), firstFrameIndex, lastFrameIndex);
+
       fmt::printf("animation %zu: %s (%d%%)\n", animIx, (const char*)animStackName, 0);
     }
 
@@ -1074,19 +1074,21 @@ static void ReadAnimations(RawModel& raw, FbxScene* pScene, const GltfOptions& o
         baseRotation = FbxQuaternion(0, 0, 0, 1);
       }
 
-      fmt::printf("Node %s\n", pNode->GetName());
-      fmt::printf(
-          "baseTranslation: %f, %f, %f\n",
-          baseTranslation[0],
-          baseTranslation[1],
-          baseTranslation[2]);
-      fmt::printf(
-          "baseRotation: %f, %f, %f, %f\n",
-          baseRotation[0],
-          baseRotation[1],
-          baseRotation[2],
-          baseRotation[3]);
-      fmt::printf("baseScaling: %f, %f, %f\n", baseScaling[0], baseScaling[1], baseScaling[2]);
+      if (verboseOutput) {
+        fmt::printf("Node %s\n", pNode->GetName());
+        fmt::printf(
+            "baseTranslation: %f, %f, %f\n",
+            baseTranslation[0],
+            baseTranslation[1],
+            baseTranslation[2]);
+        fmt::printf(
+            "baseRotation: %f, %f, %f, %f\n",
+            baseRotation[0],
+            baseRotation[1],
+            baseRotation[2],
+            baseRotation[3]);
+        fmt::printf("baseScaling: %f, %f, %f\n", baseScaling[0], baseScaling[1], baseScaling[2]);
+      }
 
       RawChannel channel;
       channel.nodeIndex = raw.GetNodeById(pNode->GetUniqueID());
@@ -1319,7 +1321,7 @@ static void FindFbxTextures(
       textureLocations.emplace(pFileTexture, fileLocation.c_str());
       if (fileLocation.empty()) {
         fmt::printf(
-            "Warning: could not find a image file for texture: %s.\n", pFileTexture->GetName());
+            "Warning: could not find a image file for texture. Model: %s, TexName: %s, TexFile: %s.\n", FileUtils::GetFileBase(fbxFileName), pFileTexture->GetName(), pFileTexture->GetFileName());
       } else if (verboseOutput) {
         fmt::printf("Found texture '%s' at: %s\n", pFileTexture->GetName(), fileLocation);
       }

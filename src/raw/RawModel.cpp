@@ -158,7 +158,6 @@ int RawModel::AddTexture(
   texture.mipLevels =
       (int)ceilf(log2f(std::max((float)properties.width, (float)properties.height)));
   texture.usage = usage;
-  std::cout << __FILE__ << " AddTexture occlusion: " << properties.occlusion << "\n";
   switch (properties.occlusion) {
   case ImageUtils::IMAGE_OPAQUE:
     texture.occlusion = RAW_TEXTURE_OCCLUSION_OPAQUE;
